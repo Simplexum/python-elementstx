@@ -171,7 +171,7 @@ def alice(say, recv, send, die, rpc):
         die('unexpected number of outputs in tx from Bob: expected 1, got {}'
             .format(len(partial_tx.vout)))
 
-    result = partial_tx.vout[0].unblind(
+    result = partial_tx.vout[0].unblind_confidential_pair(
         blinding_key, partial_tx.wit.vtxoutwit[0].rangeproof)
 
     if result.error:
@@ -523,7 +523,7 @@ def bob(say, recv, send, die, rpc):
     # that they match the offer. We use n+1 as output index
     # because we skip our own output, which is at index 0.
     for n, offer in enumerate(alice_offers):
-        result = semi_signed_tx.vout[n+1].unblind(
+        result = semi_signed_tx.vout[n+1].unblind_confidential_pair(
             blinding_keys[n], semi_signed_tx.wit.vtxoutwit[n+1].rangeproof)
 
         if result.error:

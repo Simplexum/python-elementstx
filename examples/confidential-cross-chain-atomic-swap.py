@@ -482,7 +482,7 @@ def find_and_unblind_vout(say, tx, elt_contract_addr, blinding_key, die):
     for vout_n, vout in enumerate(tx.vout):
         if vout.scriptPubKey == elt_contract_addr.to_scriptPubKey():
             say("Found the address at output {}".format(vout_n))
-            unblind_result = vout.unblind(
+            unblind_result = vout.unblind_confidential_pair(
                 blinding_key, tx.wit.vtxoutwit[vout_n].rangeproof)
             if unblind_result.error:
                 die('cannot unblind the output: {}'

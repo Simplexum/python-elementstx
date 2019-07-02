@@ -679,7 +679,7 @@ class CElementsTxOut(ReprOrStrMixin, CTxOutBase,
             strfn(self.nValue), repr(self.scriptPubKey), strfn(self.nAsset),
             strfn(self.nNonce))
 
-    def unblind(self, blinding_key=None, rangeproof=None):
+    def unblind_confidential_pair(self, blinding_key=None, rangeproof=None):
         """Unblinds a txout, given a key and a rangeproof.
         returns a tuple of (success, result)
         If success is True, result is BlindingInputDescriptor namedtuple.

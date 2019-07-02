@@ -118,7 +118,7 @@ if __name__ == '__main__':
         blinding_factor = Uint256()
         asset_blinding_factor = Uint256()
     else:
-        result = utxo.unblind(
+        result = utxo.unblind_confidential_pair(
             bkey, input_tx.wit.vtxoutwit[utxo_n].rangeproof)
 
         if result.error:

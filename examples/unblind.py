@@ -68,7 +68,8 @@ if __name__ == '__main__':
             print("  asset:\t\t", vout.nAsset.to_asset())
         else:
             # Try to unblind the output with the given blinding key
-            result = vout.unblind(bkey, tx.wit.vtxoutwit[n].rangeproof)
+            result = vout.unblind_confidential_pair(
+                bkey, tx.wit.vtxoutwit[n].rangeproof)
 
             if result.error:
                 # Nope, our blinding key is not good for this output
