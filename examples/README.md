@@ -93,7 +93,7 @@ Send the sum of `1.2345` of the default asset from node1 to the address we got f
     ~/$ e1-cli sendtoaddress Azpozaoz7Zsox4xh9AuSh6cLBQcP3RbJR6X3GT6Tkt5rf3NXDgEQfWL2qJnsnPhd5TeTfepBcTQKYFzs 1.2345
     > 6cb06fdff623a40562dbd942b59c4c9b59bb0d7d918fa259980e76acb8bf4ea5
 
-Check that the output to the address is blinded. The address `2dmGwHSBrDSpq14o6GFcn82Sshefk89tQz2` is in vout at index 1 (indexes start from 0)
+Check that the output to the address is blinded. The address `XZsErNop3XtKxzPuLBrSD23r8YNcTmUSDL` is in vout at index 1 (indexes start from 0)
 
     ~/$ e1-cli getrawtransaction 6cb06fdff623a40562dbd942b59c4c9b59bb0d7d918fa259980e76acb8bf4ea5 1| jq '.vout'
 

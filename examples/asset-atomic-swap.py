@@ -32,7 +32,7 @@ from multiprocessing import Process, Pipe, Lock
 from bitcointx import select_chain_params
 from bitcointx.rpc import RPCCaller, JSONRPCError
 from bitcointx.core import (
-    COIN, Uint256, x, lx, b2x, Hash160,
+    Uint256, x, lx, b2x, Hash160, coins_to_satoshi,
     CTransaction, CMutableTransaction, CTxIn, CTxOut, COutPoint,
     CMutableTxOut, CMutableTxIn,
     CMutableTxInWitness, CMutableTxOutWitness, CTxInWitness
@@ -52,7 +52,7 @@ from bitcointx.wallet import (
 )
 from elementstx.core import (
     CAsset, CConfidentialValue, CConfidentialAsset,
-    BlindingInputDescriptor, blind_transaction
+    BlindingInputDescriptor
 )
 from collections import namedtuple
 
@@ -131,9 +131,9 @@ def alice(say, recv, send, die, rpc):
     say('Sending offer to Bob')
     my_offers = [
         AtomicSwapOffer(asset=asset1_str,
-                        amount=btc_to_satoshi(asset1_utxo['amount'])),
+                        amount=coins_to_satoshi(asset1_utxo['amount'])),
         AtomicSwapOffer(asset=asset2_str,
-                        amount=btc_to_satoshi(asset2_utxo['amount']))
+                        amount=coins_to_satoshi(asset2_utxo['amount']))
     ]
     send('offer', my_offers)
 
@@ -246,14 +246,14 @@ def alice(say, recv, send, die, rpc):
         input_descriptors.append(
             BlindingInputDescriptor(
                 asset=CAsset(lx(utxo['asset'])),
-                amount=btc_to_satoshi(utxo['amount']),
+                amount=coins_to_satoshi(utxo['amount']),
                 blinding_factor=Uint256(lx(utxo['amountblinder'])),
                 asset_blinding_factor=Uint256(lx(utxo['assetblinder']))))
 
         # If we are supplying asset blinders and assetblinders for
         # particular input, assetcommitment data for that input do
         # not need to be correct. But if we are supplying assetcommitments
-        # at all (auxiliary_generators argument to blind_transaction()),
+        # at all (auxiliary_generators argument to tx.blind()),
         # then all the elements of that array must have correct
         # type (bytes) and length (33). This is a requirement of the original
         # Elements Core API, and python-bitcointx requires this, too.
@@ -269,7 +269,8 @@ def alice(say, recv, send, die, rpc):
         output_pubkeys.append(bob_addr_list[n].blinding_pubkey)
 
     # Add change output for fee asset
-    fee_change_amount = btc_to_satoshi(fee_utxo['amount']) - FIXED_FEE_SATOSHI
+    fee_change_amount = (coins_to_satoshi(fee_utxo['amount'])
+                         - FIXED_FEE_SATOSHI)
     tx.vout.append(
         CMutableTxOut(nValue=CConfidentialValue(fee_change_amount),
                       nAsset=CConfidentialAsset(fee_asset),
@@ -305,8 +306,8 @@ def alice(say, recv, send, die, rpc):
     tx.wit.vtxoutwit.append(CMutableTxOutWitness())
 
     # And blind the combined transaction
-    blind_result = blind_transaction(
-        tx, input_descriptors=input_descriptors, output_pubkeys=output_pubkeys,
+    blind_result = tx.blind(
+        input_descriptors=input_descriptors, output_pubkeys=output_pubkeys,
         auxiliary_generators=assetcommitments)
 
     # The blinding must succeed!
@@ -374,7 +375,7 @@ def alice(say, recv, send, die, rpc):
     wait_confirm(say, txid, die, rpc)
 
     # Check that everything went smoothly
-    balance = btc_to_satoshi(rpc.getbalance("*", 1, False, bob_offer.asset))
+    balance = coins_to_satoshi(rpc.getbalance("*", 1, False, bob_offer.asset))
     if balance != bob_offer.amount:
         die('something went wrong, balance of Bob\'s asset after swap '
             'should be {} satoshi, but it is {} satoshi'
@@ -394,7 +395,7 @@ def bob(say, recv, send, die, rpc):
 
     # Issue an asset that we are going to swap
     asset_str, asset_utxo = issue_asset(say, 1.0, rpc)
-    asset_amount_satoshi = btc_to_satoshi(asset_utxo['amount'])
+    asset_amount_satoshi = coins_to_satoshi(asset_utxo['amount'])
 
     say('Setting up communication with Alice')
 
@@ -462,8 +463,7 @@ def bob(say, recv, send, die, rpc):
     # that does the unblinding itself, and uses the unblinded values
     # to create a spending transaction.
 
-    blind_result = blind_transaction(
-        partial_tx,
+    blind_result = partial_tx.blind(
         input_descriptors=[
             BlindingInputDescriptor(
                 asset=CAsset(lx(asset_utxo['asset'])),
@@ -585,7 +585,7 @@ def bob(say, recv, send, die, rpc):
     print_asset_balances(say, alice_offers + [my_offer], rpc)
 
     for i, offer in enumerate(alice_offers):
-        balance = btc_to_satoshi(rpc.getbalance("*", 1, False, offer.asset))
+        balance = coins_to_satoshi(rpc.getbalance("*", 1, False, offer.asset))
         if balance != offer.amount:
             die('something went wrong, asset{} balance after swap should be '
                 '{} satoshi, but it is {} satoshi'
@@ -721,11 +721,6 @@ def participant(func, name, pipe, config_path):
         sys.exit(-1)
 
 
-def btc_to_satoshi(value):
-    """Simple utility function to convert from BTC to satoshi"""
-    return int(round(float(value) * COIN))
-
-
 def participant_says(name, msg):
     """A helper function to coordinate
     console message output between processes"""
@@ -841,7 +836,7 @@ def find_utxo_for_fee(say, die, rpc):
     for utxo in utxo_list:
         # To not deal with possibility of dust outputs,
         # just require fee utxo to be big enough
-        if btc_to_satoshi(utxo['amount']) >= FIXED_FEE_SATOSHI*2:
+        if coins_to_satoshi(utxo['amount']) >= FIXED_FEE_SATOSHI*2:
             utxo['key'] = CCoinKey(rpc.dumpprivkey(utxo['address']))
             if 'assetcommitment' not in utxo:
                 # If UTXO is not blinded, Elements daemon will not
@@ -882,7 +877,7 @@ def sign_input(tx, input_index, utxo):
     if 'amountcommitment' in utxo:
         amountcommitment = CConfidentialValue(x(utxo['amountcommitment']))
     else:
-        amountcommitment = CConfidentialValue(btc_to_satoshi(utxo['amount']))
+        amountcommitment = CConfidentialValue(coins_to_satoshi(utxo['amount']))
 
     sighash = script_for_sighash.sighash(tx, input_index,
                                          SIGHASH_ALL, amount=amountcommitment,
@@ -931,7 +926,7 @@ def claim_funds_back(say, utxos, die, rpc):
         input_descriptors.append(
             BlindingInputDescriptor(
                 asset=CAsset(lx(utxo['asset'])),
-                amount=btc_to_satoshi(utxo['amount']),
+                amount=coins_to_satoshi(utxo['amount']),
                 blinding_factor=Uint256(lx(utxo['amountblinder'])),
                 asset_blinding_factor=Uint256(lx(utxo['assetblinder']))
             ))
@@ -966,8 +961,8 @@ def claim_funds_back(say, utxos, die, rpc):
     tx = tx.to_immutable().to_mutable()
 
     # And blind the combined transaction
-    blind_result = blind_transaction(
-        tx, input_descriptors=input_descriptors, output_pubkeys=output_pubkeys)
+    blind_result = tx.blind(
+        input_descriptors=input_descriptors, output_pubkeys=output_pubkeys)
 
     assert (not blind_result.error
             and blind_result.num_successfully_blinded == len(utxos))

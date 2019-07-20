@@ -17,14 +17,9 @@ import elementstx.wallet
 from bitcointx import BitcoinMainnetParams
 
 
-class ElementsParams(BitcoinMainnetParams):
-    NAME = 'elements'
+class ElementsParams(BitcoinMainnetParams, name='elements'):
     RPC_PORT = 7041
-    TRANSACTION_IDENTITY = elementstx.core.ElementsTransactionIdentityMeta
-    WALLET_IDENTITY = elementstx.wallet.ElementsWalletIdentityMeta
-
-    CT_EXPONENT = 0
-    CT_BITS = 32
+    WALLET_DISPATCHER = elementstx.wallet.WalletElementsClassDispatcher
 
     def get_datadir_extra_name(self):
         name_parts = self.NAME.split('/')

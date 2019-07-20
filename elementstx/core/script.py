@@ -17,7 +17,8 @@ from io import BytesIO
 from bitcointx.util import no_bool_use_as_property
 from bitcointx.core import Hash
 from bitcointx.core.script import (
-    CScript, CScriptBase, CScriptOp,
+    ScriptCoinClassDispatcher, ScriptCoinClass,
+    CScript, CScriptOp,
     SIGVERSION_BASE, SIGVERSION_WITNESS_V0,
     CScriptInvalidError,
     RawBitcoinSignatureHash,
@@ -38,6 +39,15 @@ import elementstx.core
 OP_DETERMINISTICRANDOM = CScriptOp(0xc1)
 OP_CHECKSIGFROMSTACK = CScriptOp(0xc1)
 OP_CHECKSIGFROMSTACKVERIFY = CScriptOp(0xc2)
+
+
+class ScriptElementsClassDispatcher(ScriptCoinClassDispatcher):
+    ...
+
+
+class ScriptElementsClass(ScriptCoinClass,
+                          metaclass=ScriptElementsClassDispatcher):
+    ...
 
 
 def RawElementsSignatureHash(script, txTo, inIdx, hashtype, amount=0,
@@ -114,7 +124,7 @@ def RawElementsSignatureHash(script, txTo, inIdx, hashtype, amount=0,
     return (hash, None)
 
 
-class CElementsScript(CScriptBase):
+class CElementsScript(CScript, ScriptElementsClass):
 
     def derive_blinding_key(self, blinding_derivation_key):
         return elementstx.core.derive_blinding_key(
@@ -171,6 +181,7 @@ class CElementsScript(CScriptBase):
         return self.get_pegout_data() is not None
 
 
-# Make CElementsScript behave like a a subclass of CScript
-# regarding isinstance(script, CScript), etc
-CScript.register(CElementsScript)
+__all__ = (
+    'CElementsScript',
+    'RawElementsSignatureHash',
+)

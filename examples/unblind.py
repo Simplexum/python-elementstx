@@ -21,13 +21,9 @@
 import sys
 
 from bitcointx import select_chain_params
-from bitcointx.core import x, CTransaction, COIN
+from bitcointx.core import x, CTransaction, satoshi_to_coins
 from bitcointx.wallet import CCoinKey, CCoinAddress
-from elementstx.wallet import CConfidentialAddress
-
-
-def satoshi_to_btc(amount):
-    return float(float(amount) / COIN)
+from elementstx.wallet import CCoinConfidentialAddress
 
 
 if __name__ == '__main__':
@@ -64,7 +60,7 @@ if __name__ == '__main__':
                 print("vout {}: explicit".format(n))
                 print("  destination address:",
                       CCoinAddress.from_scriptPubKey(tx.vout[n].scriptPubKey))
-            print("  amount:\t\t", satoshi_to_btc(vout.nValue.to_amount()))
+            print("  amount:\t\t", satoshi_to_coins(vout.nValue.to_amount()))
             print("  asset:\t\t", vout.nAsset.to_asset())
         else:
             # Try to unblind the output with the given blinding key
@@ -81,17 +77,17 @@ if __name__ == '__main__':
                     if rpinfo:
                         print('  ct-exponent', rpinfo.exp)
                         print('  ct-bits', rpinfo.mantissa)
-                        print('  value-minimum', satoshi_to_btc(rpinfo.value_min))
-                        print('  value-maximum', satoshi_to_btc(rpinfo.value_max))
+                        print('  value-minimum', satoshi_to_coins(rpinfo.value_min))
+                        print('  value-maximum', satoshi_to_coins(rpinfo.value_max))
             else:
                 # Successfully unblinded the output !
                 print("vout {}: unblinded".format(n))
                 addr = CCoinAddress.from_scriptPubKey(tx.vout[n].scriptPubKey)
-                conf_addr = CConfidentialAddress.from_unconfidential(addr, bkey.pub)
+                conf_addr = CCoinConfidentialAddress.from_unconfidential(addr, bkey.pub)
                 print("  destination address:")
                 print("     confidential:\t", conf_addr)
                 print("     unconfidential:\t", addr)
-                print("  amount:\t\t", satoshi_to_btc(result.amount))
+                print("  amount:\t\t", satoshi_to_coins(result.amount))
                 print("  blinding_factor:\t", result.blinding_factor)
                 print("  asset:\t\t", result.asset)
                 print("  asset_blinding_factor:", result.asset_blinding_factor)

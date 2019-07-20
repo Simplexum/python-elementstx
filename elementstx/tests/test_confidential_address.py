@@ -21,7 +21,8 @@ from bitcointx.wallet import (
 )
 from elementstx.wallet import (
     P2PKHElementsAddress,
-    P2PKHElementsConfidentialAddress
+    P2PKHElementsConfidentialAddress,
+    CCoinConfidentialAddress
 )
 
 
@@ -49,6 +50,11 @@ class Test_ConfidentialAddress(unittest.TestCase):
                     unconfidential_addr, a.blinding_pubkey)))
             self.assertEqual(expected_blinding_pubkey, a.blinding_pubkey)
             self.assertIsInstance(a, expected_class)
+            a2 = CCoinConfidentialAddress(str(a))
+            self.assertEqual(a, a2)
+            a2 = CCoinConfidentialAddress.from_unconfidential(unconfidential_addr,
+                                                              a.blinding_pubkey)
+            self.assertEqual(a, a2)
 
         T('CTEp1wviJ6U7SdAAs5sRJ1NzzRzAbmQGt1veiswjWrkzv98W7UJMQjBccafpS6v9w6evWTqeLsGc7TC1',
           x('029ffb47606c3d672a3429d91650960c63ff7d8f8ff9e00b4a8e3430c6549b4cc83422fe11c415bb9c8618f9d8498d9ad945056bdb'),

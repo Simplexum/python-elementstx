@@ -44,9 +44,8 @@ from bitcointx.core.script import (
 )
 from elementstx.core import (
     CConfidentialValue, CConfidentialAsset, BlindingInputDescriptor,
-    blind_transaction
 )
-from elementstx.wallet import CConfidentialAddress
+from elementstx.wallet import CCoinConfidentialAddress
 
 
 if __name__ == '__main__':
@@ -144,11 +143,11 @@ if __name__ == '__main__':
 
     dst_value = amount_to_spend - fee_value
 
-    # An array of blinding pubkeys that we will supply to blind_transaction()
+    # An array of blinding pubkeys that we will supply to tx.blind()
     # It should cover all the outputs of the resulting transaction.
     output_pubkeys = []
 
-    if isinstance(dst_addr, CConfidentialAddress):
+    if isinstance(dst_addr, CCoinConfidentialAddress):
         output_pubkeys.append(dst_addr.blinding_pubkey)
     else:
         output_pubkeys.append(CPubKey())
@@ -175,7 +174,7 @@ if __name__ == '__main__':
     tx = tx.to_mutable()
 
     if not utxo.nValue.is_explicit() and\
-            not isinstance(dst_addr, CConfidentialAddress):
+            not isinstance(dst_addr, CCoinConfidentialAddress):
         # If we are spending a blinded utxo, at least one of the outputs
         # of the resulting transaction should be blinded.
         # If dst_addr is not confidential, we need to add dummy blinded output.
@@ -186,19 +185,19 @@ if __name__ == '__main__':
                 nAsset=CConfidentialAsset(asset_to_spend),
                 scriptPubKey=CScript([OP_RETURN])))
 
-        # Append dummy blinding pubkey to be used by blind_transaction()
+        # Append dummy blinding pubkey to be used by tx.blind()
         output_pubkeys.append(dummy_blinding_key.pub)
 
     # Save unblinded serialized tx so if the tx is not to be blinded,
-    # we can check that blind_transaction() did not actually change anything
+    # we can check that tx.blind() did not actually change anything
     unblinded_serialized = tx.serialize()
 
     # input_* arrays contain one element because
     # our transaction only have one input.
     # output_pubkeys may contain 2 or 3 elements
     # (3 if we added dummy OP_RETURN above)
-    blind_result = blind_transaction(
-        tx, input_descriptors=[
+    blind_result = tx.blind(
+        input_descriptors=[
             BlindingInputDescriptor(
                 asset=asset_to_spend,
                 amount=amount_to_spend,

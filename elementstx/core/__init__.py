@@ -26,8 +26,6 @@ import ctypes
 import hashlib
 from collections import namedtuple
 
-from bitcointx import get_current_chain_params
-
 from elementstx.core.secp256k1 import (
     _secp256k1, secp256k1_has_zkp, secp256k1_blind_context,
     SECP256K1_GENERATOR_SIZE, SECP256K1_PEDERSEN_COMMITMENT_SIZE,
@@ -39,11 +37,10 @@ from bitcointx.core.key import (
 )
 
 from bitcointx.core import (
-    Uint256, MoneyRange, CoinTransactionIdentityMeta,
+    CoreCoinClassDispatcher, CoreCoinClass, CoreCoinParams,
+    Uint256, MoneyRange,
     bytes_for_repr, ReprOrStrMixin, b2x,
-    CTxWitnessBase, CTxInWitnessBase, CTxOutWitnessBase,
-    CTxInBase, CTxOutBase, COutPointBase, COutPoint, CMutableOutPoint,
-    CTransactionBase,
+    COutPoint, CMutableOutPoint,
 
     CTransaction, CTxIn, CTxOut, CTxWitness, CTxInWitness, CTxOutWitness,
 
@@ -52,16 +49,15 @@ from bitcointx.core import (
 )
 
 from bitcointx.util import no_bool_use_as_property
-from bitcointx.core.script import CScriptWitness, CScript
+from bitcointx.core.script import CScriptWitness
 from bitcointx.core.sha256 import CSHA256
 from bitcointx.core.serialize import (
     ImmutableSerializable, SerializationError,
     BytesSerializer, VectorSerializer,
-    ser_read, MutableSerializableMeta,
-    is_mut_inst, is_mut_cls
+    ser_read
 )
 
-from .script import CElementsScript
+from .script import CElementsScript, ScriptElementsClassDispatcher
 
 # If this flag is set, the CTxIn including this COutPoint has a CAssetIssuance object.
 OUTPOINT_ISSUANCE_FLAG = (1 << 31)
@@ -73,15 +69,18 @@ OUTPOINT_PEGIN_FLAG = (1 << 30)
 OUTPOINT_INDEX_MASK = 0x3fffffff
 
 
-class ElementsTransactionIdentityMeta(CoinTransactionIdentityMeta):
-    @classmethod
-    def _get_extra_classmap(cls):
-        return {CScript: CElementsScript}
-
-
-class ElementsMutableTransactionIdentityMeta(ElementsTransactionIdentityMeta,
-                                             MutableSerializableMeta):
+class CoreElementsClassDispatcher(CoreCoinClassDispatcher,
+                                  depends=[ScriptElementsClassDispatcher]):
     ...
+
+
+class CoreElementsClass(CoreCoinClass, metaclass=CoreElementsClassDispatcher):
+    ...
+
+
+class CoreElementsParams(CoreCoinParams, CoreElementsClass):
+    CT_EXPONENT = 0
+    CT_BITS = 32
 
 
 class WitnessSerializationError(SerializationError):
@@ -90,13 +89,6 @@ class WitnessSerializationError(SerializationError):
 
 class TxInSerializationError(SerializationError):
     pass
-
-
-def _check_inst_compatible(inst, imm_concrete_class):
-    if not isinstance(inst, imm_concrete_class):
-        raise ValueError(
-            'incompatible class: expected instance of {}, got {}'
-            .format(imm_concrete_class.__name__, inst.__class__.__name__))
 
 
 class CConfidentialCommitmentBase(ImmutableSerializable):
@@ -255,20 +247,18 @@ class CConfidentialNonce(CConfidentialCommitmentBase):
         return "{}({})".format(self.__class__.__name__, v)
 
 
-class CElementsOutPoint(COutPointBase,
-                        metaclass=ElementsTransactionIdentityMeta):
+class CElementsOutPoint(COutPoint, CoreElementsClass):
     """Elements COutPoint"""
     __slots__ = []
 
 
-class CElementsMutableOutPoint(CElementsOutPoint,
-                               metaclass=ElementsMutableTransactionIdentityMeta):
+class CElementsMutableOutPoint(CElementsOutPoint, CMutableOutPoint,
+                               mutable_of=CElementsOutPoint):
     """A mutable Elements COutPoint"""
     __slots__ = []
 
 
-class CElementsTxInWitness(ReprOrStrMixin, CTxInWitnessBase,
-                           metaclass=ElementsTransactionIdentityMeta):
+class CElementsTxInWitness(ReprOrStrMixin, CTxInWitness, CoreElementsClass):
     """Witness data for a single transaction input of elements transaction"""
     __slots__ = ['scriptWitness',
                  'issuanceAmountRangeproof', 'inflationKeysRangeproof', 'pegin_witness']
@@ -312,17 +302,15 @@ class CElementsTxInWitness(ReprOrStrMixin, CTxInWitnessBase,
         self.pegin_witness.stream_serialize(f)
 
     @classmethod
-    def from_txin_witness(cls, txin_witness):
-        _check_inst_compatible(txin_witness,
-                               cls._concrete_class.immutable.CTxInWitness)
-
-        if not is_mut_cls(cls) and not is_mut_inst(txin_witness):
-            return txin_witness
-
+    def clone_from_instance(cls, txin_witness):
         return cls(scriptWitness=txin_witness.scriptWitness,
                    issuanceAmountRangeproof=txin_witness.issuanceAmountRangeproof,
                    inflationKeysRangeproof=txin_witness.inflationKeysRangeproof,
                    pegin_witness=txin_witness.pegin_witness)
+
+    @classmethod
+    def from_txin_witness(cls, txin_witness):
+        return cls.from_instance(txin_witness)
 
     def _repr_or_str(self, strfn):
         if self.is_null():
@@ -333,13 +321,12 @@ class CElementsTxInWitness(ReprOrStrMixin, CTxInWitnessBase,
             bytes_for_repr(self.inflationKeysRangeproof), strfn(self.pegin_witness))
 
 
-class CElementsMutableTxInWitness(CElementsTxInWitness,
-                                  metaclass=ElementsMutableTransactionIdentityMeta):
+class CElementsMutableTxInWitness(CElementsTxInWitness, CMutableTxInWitness,
+                                  mutable_of=CElementsTxInWitness):
     __slots__ = []
 
 
-class CElementsTxOutWitness(CTxOutWitnessBase,
-                            metaclass=ElementsTransactionIdentityMeta):
+class CElementsTxOutWitness(CTxOutWitness, CoreElementsClass):
     """Witness data for a single transaction output of elements transaction"""
     __slots__ = ['surjectionproof', 'rangeproof']
 
@@ -386,15 +373,13 @@ class CElementsTxOutWitness(CTxOutWitnessBase,
                                  value_min=value_min.value, value_max=value_max.value)
 
     @classmethod
-    def from_txout_witness(cls, txout_witness):
-        _check_inst_compatible(txout_witness,
-                               cls._concrete_class.immutable.CTxOutWitness)
-
-        if not is_mut_cls(cls) and not is_mut_inst(txout_witness):
-            return txout_witness
-
+    def clone_from_instance(cls, txout_witness):
         return cls(surjectionproof=txout_witness.surjectionproof,
                    rangeproof=txout_witness.rangeproof)
+
+    @classmethod
+    def from_txout_witness(cls, txout_witness):
+        return cls.from_instance(txout_witness)
 
     def __repr__(self):
         if self.is_null():
@@ -405,41 +390,31 @@ class CElementsTxOutWitness(CTxOutWitnessBase,
             bytes_for_repr(self.rangeproof))
 
 
-class CElementsMutableTxOutWitness(CElementsTxOutWitness,
-                                   metaclass=ElementsMutableTransactionIdentityMeta):
+class CElementsMutableTxOutWitness(CElementsTxOutWitness, CMutableTxOutWitness,
+                                   mutable_of=CElementsTxOutWitness):
     __slots__ = []
 
 
-class CElementsTxWitness(ReprOrStrMixin, CTxWitnessBase,
-                         metaclass=ElementsTransactionIdentityMeta):
+class CElementsTxWitness(ReprOrStrMixin, CTxWitness, CoreElementsClass):
 
     __slots__ = ['vtxinwit', 'vtxoutwit']
 
     def __init__(self, vtxinwit=(), vtxoutwit=()):
-        def process_wit(in_witlist, imm_w_cls, clone_f):
-            witlist = []
-            for w in in_witlist:
-                _check_inst_compatible(w, imm_w_cls)
-                if is_mut_inst(self) or is_mut_inst(w):
-                    witlist.append(clone_f(w))
-                else:
-                    witlist.append(w)
+        txinwit = []
+        for w in vtxinwit:
+            txinwit.append(CTxInWitness.from_txin_witness(w))
 
-            if not is_mut_inst(self):
-                witlist = tuple(witlist)
+        txoutwit = []
+        for w in vtxoutwit:
+            txoutwit.append(CTxOutWitness.from_txout_witness(w))
 
-            return witlist
+        if self.is_immutable():
+            txinwit = tuple(txinwit)
+            txoutwit = tuple(txoutwit)
 
-        object.__setattr__(
-            self, 'vtxinwit',
-            process_wit(vtxinwit,
-                        self._concrete_class.immutable.CTxInWitness,
-                        self._concrete_class.CTxInWitness.from_txin_witness))
-        object.__setattr__(
-            self, 'vtxoutwit',
-            process_wit(vtxoutwit,
-                        self._concrete_class.immutable.CTxOutWitness,
-                        self._concrete_class.CTxOutWitness.from_txout_witness))
+        # Note: vtxoutwit is ignored, does not exist for bitcon tx witness
+        object.__setattr__(self, 'vtxinwit', txinwit)
+        object.__setattr__(self, 'vtxoutwit', txoutwit)
 
     @no_bool_use_as_property
     def is_null(self):
@@ -455,10 +430,10 @@ class CElementsTxWitness(ReprOrStrMixin, CTxWitnessBase,
     # know how many items to deserialize, which comes from len(vin)
     def stream_deserialize(self, f):
         vtxinwit = tuple(
-            self._concrete_class.CTxInWitness.stream_deserialize(f)
+            CTxInWitness.stream_deserialize(f)
             for dummy in range(len(self.vtxinwit)))
         vtxoutwit = tuple(
-            self._concrete_class.CTxOutWitness.stream_deserialize(f)
+            CTxOutWitness.stream_deserialize(f)
             for dummy in range(len(self.vtxoutwit)))
         return self.__class__(vtxinwit, vtxoutwit)
 
@@ -469,18 +444,12 @@ class CElementsTxWitness(ReprOrStrMixin, CTxWitnessBase,
             self.vtxoutwit[i].stream_serialize(f)
 
     @classmethod
+    def clone_from_instance(cls, witness):
+        return cls(witness.vtxinwit, witness.vtxoutwit)
+
+    @classmethod
     def from_witness(cls, witness):
-        _check_inst_compatible(witness,
-                               cls._concrete_class.immutable.CTxWitness)
-
-        if not is_mut_cls(cls) and not is_mut_inst(witness):
-            return witness
-
-        vtxinwit = (cls._concrete_class.CTxInWitness.from_txin_witness(w)
-                    for w in witness.vtxinwit)
-        vtxoutwit = (cls._concrete_class.CTxOutWitness.from_txout_witness(w)
-                     for w in witness.vtxoutwit)
-        return cls(vtxinwit, vtxoutwit)
+        return cls.from_instance(witness)
 
     def _repr_or_str(self, strfn):
         return "%s([%s], [%s])" % (
@@ -489,8 +458,8 @@ class CElementsTxWitness(ReprOrStrMixin, CTxWitnessBase,
             ','.join(strfn(w) for w in self.vtxoutwit))
 
 
-class CElementsMutableTxWitness(CElementsTxWitness,
-                                metaclass=ElementsMutableTransactionIdentityMeta):
+class CElementsMutableTxWitness(CElementsTxWitness, CMutableTxWitness,
+                                mutable_of=CElementsTxWitness):
     __slots__ = []
 
 
@@ -535,8 +504,7 @@ class CAssetIssuance(ImmutableSerializable, ReprOrStrMixin):
         return 'CAssetIssuance({})'.format(', '.join(r))
 
 
-class CElementsTxIn(ReprOrStrMixin, CTxInBase,
-                    metaclass=ElementsTransactionIdentityMeta):
+class CElementsTxIn(ReprOrStrMixin, CTxIn, CoreElementsClass):
     """Immutable Elements CTxIn"""
     __slots__ = ['prevout', 'scriptSig', 'nSequence', 'assetIssuance', 'is_pegin']
 
@@ -568,8 +536,8 @@ class CElementsTxIn(ReprOrStrMixin, CTxInBase,
             # that the in-memory index field retains its traditional
             # meaning of identifying the index into the output array
             # of the previous transaction.
-            prevout = cls._concrete_class.COutPoint(
-                base.prevout.hash, base.prevout.n & OUTPOINT_INDEX_MASK)
+            prevout = COutPoint(base.prevout.hash,
+                                base.prevout.n & OUTPOINT_INDEX_MASK)
 
         if has_asset_issuance:
             assetIssuance = CAssetIssuance.stream_deserialize(f)
@@ -593,9 +561,9 @@ class CElementsTxIn(ReprOrStrMixin, CTxInBase,
                     n |= OUTPOINT_ISSUANCE_FLAG
                 if self.is_pegin:
                     n |= OUTPOINT_PEGIN_FLAG
-            outpoint = self._concrete_class.COutPoint(self.prevout.hash, n)
+            outpoint = COutPoint(self.prevout.hash, n)
 
-        self._concrete_class.COutPoint.stream_serialize(outpoint, f)
+        COutPoint.stream_serialize(outpoint, f)
         BytesSerializer.stream_serialize(self.scriptSig, f)
         f.write(struct.pack(b"<I", self.nSequence))
 
@@ -610,25 +578,22 @@ class CElementsTxIn(ReprOrStrMixin, CTxInBase,
             self.is_pegin)
 
     @classmethod
-    def from_txin(cls, txin):
-        _check_inst_compatible(txin, cls._concrete_class.immutable.CTxIn)
-
-        if not is_mut_cls(cls) and not is_mut_inst(txin):
-            return txin
-
+    def clone_from_instance(cls, txin):
         return cls(
-            cls._concrete_class.COutPoint.from_outpoint(txin.prevout),
+            COutPoint.from_outpoint(txin.prevout),
             txin.scriptSig, txin.nSequence, txin.assetIssuance, txin.is_pegin)
 
+    @classmethod
+    def from_txin(cls, txin):
+        return cls.from_instance(txin)
 
-class CElementsMutableTxIn(CElementsTxIn,
-                           metaclass=ElementsMutableTransactionIdentityMeta):
+
+class CElementsMutableTxIn(CElementsTxIn, CMutableTxIn, mutable_of=CElementsTxIn):
     """A mutable Elements CTxIn"""
     __slots__ = []
 
 
-class CElementsTxOut(ReprOrStrMixin, CTxOutBase,
-                     metaclass=ElementsTransactionIdentityMeta):
+class CElementsTxOut(ReprOrStrMixin, CTxOut, CoreElementsClass):
     """An output of an Elements transaction
     """
     __slots__ = ['nValue', 'scriptPubKey', 'nAsset', 'nNonce']
@@ -689,23 +654,21 @@ class CElementsTxOut(ReprOrStrMixin, CTxOutBase,
             self.scriptPubKey, rangeproof)
 
     @classmethod
-    def from_txout(cls, txout):
-        _check_inst_compatible(txout, cls._concrete_class.immutable.CTxOut)
-
-        if not is_mut_cls(cls) and not is_mut_inst(txout):
-            return txout
-
+    def clone_from_instance(cls, txout):
         return cls(txout.nValue, txout.scriptPubKey,
                    txout.nAsset, txout.nNonce)
 
+    @classmethod
+    def from_txout(cls, txout):
+        return cls.from_instance(txout)
 
-class CElementsMutableTxOut(CElementsTxOut,
-                            metaclass=ElementsMutableTransactionIdentityMeta):
+
+class CElementsMutableTxOut(CElementsTxOut, CMutableTxOut,
+                            mutable_of=CElementsTxOut):
     __slots__ = []
 
 
-class CElementsTransaction(CTransactionBase,
-                           metaclass=ElementsTransactionIdentityMeta):
+class CElementsTransaction(CTransaction, CoreElementsClass):
     __slots__ = []
 
     @classmethod
@@ -727,20 +690,19 @@ class CElementsTransaction(CTransactionBase,
         markerbyte = 0
         flagbyte = struct.unpack(b'B', ser_read(f, 1))[0]
         if markerbyte == 0 and flagbyte == 1:
-            vin = VectorSerializer.stream_deserialize(cls._concrete_class.CTxIn, f)
-            vout = VectorSerializer.stream_deserialize(cls._concrete_class.CTxOut, f)
-            wit = cls._concrete_class.CTxWitness(
-                tuple(cls._concrete_class.CTxInWitness()
-                      for dummy in range(len(vin))),
-                tuple(cls._concrete_class.CTxOutWitness()
-                      for dummy in range(len(vout))))
+            vin = VectorSerializer.stream_deserialize(f, element_class=CTxIn)
+            vout = VectorSerializer.stream_deserialize(f, element_class=CTxOut)
+            wit = CTxWitness(tuple(CTxInWitness()
+                                   for dummy in range(len(vin))),
+                             tuple(CTxOutWitness()
+                                   for dummy in range(len(vout))))
             # Note: nLockTime goes before witness in Elements transactions
             nLockTime = struct.unpack(b"<I", ser_read(f, 4))[0]
             wit = wit.stream_deserialize(f)
             return cls(vin, vout, nLockTime, nVersion, wit)
         else:
-            vin = VectorSerializer.stream_deserialize(cls._concrete_class.CTxIn, f)
-            vout = VectorSerializer.stream_deserialize(cls._concrete_class.CTxOut, f)
+            vin = VectorSerializer.stream_deserialize(f, element_class=CTxIn)
+            vout = VectorSerializer.stream_deserialize(f, element_class=CTxOut)
             nLockTime = struct.unpack(b"<I", ser_read(f, 4))[0]
             return cls(vin, vout, nLockTime, nVersion)
 
@@ -751,17 +713,17 @@ class CElementsTransaction(CTransactionBase,
             assert(len(self.wit.vtxoutwit) == 0 or len(self.wit.vtxoutwit) == len(self.vout))
             f.write(b'\x01')  # Flag
             # no check of for_sighash, because standard sighash calls this without witnesses.
-            VectorSerializer.stream_serialize(self._concrete_class.CTxIn, self.vin, f)
-            VectorSerializer.stream_serialize(self._concrete_class.CTxOut, self.vout, f)
+            VectorSerializer.stream_serialize(self.vin, f)
+            VectorSerializer.stream_serialize(self.vout, f)
             # Note: nLockTime goes before witness in Elements transactions
             f.write(struct.pack(b"<I", self.nLockTime))
             self.wit.stream_serialize(f)
         else:
             if not for_sighash:
                 f.write(b'\x00')  # Flag is needed in Elements
-            VectorSerializer.stream_serialize(self._concrete_class.CTxIn, self.vin, f,
-                                              inner_params={'for_sighash': for_sighash})
-            VectorSerializer.stream_serialize(self._concrete_class.CTxOut, self.vout, f)
+            VectorSerializer.stream_serialize(self.vin, f,
+                                              for_sighash=for_sighash)
+            VectorSerializer.stream_serialize(self.vout, f)
             f.write(struct.pack(b"<I", self.nLockTime))
 
     @property
@@ -776,13 +738,19 @@ class CElementsTransaction(CTransactionBase,
 
         return numIssuances
 
-
-class CElementsMutableTransaction(CElementsTransaction,
-                                  metaclass=ElementsMutableTransactionIdentityMeta):
-    ...
+    def blind(self, *args, **kwargs):
+        raise TypeError('cannot blind immutable transction')
 
 
-def blind_transaction(tx, input_descriptors=(), output_pubkeys=(), # noqa
+class CElementsMutableTransaction(CElementsTransaction, CMutableTransaction,
+                                  mutable_of=CElementsTransaction):
+    def blind(self, *args, **kwargs):
+        if len(args):
+            raise TypeError('blind() does not accept positional parameters')
+        return blind_transaction(self, **kwargs)
+
+
+def blind_transaction(tx, *, input_descriptors=(), output_pubkeys=(), # noqa
                       blind_issuance_asset_keys=(), blind_issuance_token_keys=(),
                       auxiliary_generators=(), _rand_func=os.urandom):
 
@@ -791,7 +759,7 @@ def blind_transaction(tx, input_descriptors=(), output_pubkeys=(), # noqa
     if not isinstance(tx, CElementsTransaction):
         raise ValueError('can blind only Elements transactions')
 
-    if not is_mut_inst(tx):
+    if not tx.is_mutable():
         raise ValueError('only mutable transaction can be blinded')
 
     # based on Elements Core's BlindTransaction() function from src/blind.cpp
@@ -1364,14 +1332,12 @@ def generate_rangeproof(in_blinds, nonce, amount, scriptPubKey, commit, gen, ass
     # Compose sidechannel message to convey asset info (ID and asset blinds)
     assetsMessage = asset.data + assetblind.data
 
-    chain_params = get_current_chain_params()
-
     try:
-        ct_exponent = min(max(chain_params.CT_EXPONENT, -1), 18)
-        ct_bits = min(max(chain_params.CT_BITS, 1), 51)
+        ct_exponent = min(max(CoreCoinParams.CT_EXPONENT, -1), 18)
+        ct_bits = min(max(CoreCoinParams.CT_BITS, 1), 51)
     except AttributeError:
-        raise ValueError(
-            'current chain params must define CT_EXPONENT and CT_BITS')
+        raise TypeError(
+            'current core params params must define CT_EXPONENT and CT_BITS')
 
     # Sign rangeproof
     # If min_value is 0, scriptPubKey must be unspendable
@@ -1696,29 +1662,6 @@ class UnblindingSuccess(BlindingOrUnblindingSuccess,
             blinding_factor=self.blinding_factor,
             asset_blinding_factor=self.asset_blinding_factor)
 
-
-ElementsTransactionIdentityMeta.set_classmap({
-    CTransaction: CElementsTransaction,
-    CTxIn: CElementsTxIn,
-    CTxOut: CElementsTxOut,
-    CTxWitness: CElementsTxWitness,
-    CTxInWitness: CElementsTxInWitness,
-    CTxOutWitness: CElementsTxOutWitness,
-    COutPoint: CElementsOutPoint,
-})
-
-ElementsMutableTransactionIdentityMeta.set_classmap({
-    CMutableTransaction: CElementsMutableTransaction,
-    CMutableTxIn: CElementsMutableTxIn,
-    CMutableTxOut: CElementsMutableTxOut,
-    CMutableTxWitness: CElementsMutableTxWitness,
-    CMutableTxInWitness: CElementsMutableTxInWitness,
-    CMutableTxOutWitness: CElementsMutableTxOutWitness,
-    CMutableOutPoint: CElementsMutableOutPoint,
-})
-
-ElementsMutableTransactionIdentityMeta.set_mutable_immutable_links(
-    ElementsTransactionIdentityMeta)
 
 __all__ = (
     'CAsset',

@@ -42,7 +42,7 @@ from multiprocessing import Process, Pipe, Lock
 from bitcointx import select_chain_params, ChainParams
 from bitcointx.rpc import RPCCaller, JSONRPCError
 from bitcointx.core import (
-    COIN, x, lx, b2x,
+    x, lx, b2x, coins_to_satoshi, satoshi_to_coins,
     CTransaction, CMutableTransaction, CBitcoinTransaction,
     CTxIn, CTxOut, COutPoint, CTxInWitness
 )
@@ -66,14 +66,14 @@ from bitcointx.wallet import (
 from elementstx.core import (
     CAsset, CConfidentialValue, CConfidentialAsset,
     CConfidentialNonce, BlindingInputDescriptor,
-    CElementsTransaction, blind_transaction
+    CElementsTransaction
 )
 
 from elementstx.core.script import CElementsScript, OP_CHECKSIGFROMSTACKVERIFY
 
 from elementstx.wallet import (
-    CConfidentialAddress, CElementsConfidentialAddress,
-    CElementsAddress, P2SHConfidentialAddress
+    CCoinConfidentialAddress, CElementsConfidentialAddress,
+    CElementsAddress, P2SHCoinConfidentialAddress
 )
 
 # A global lock variable to coordinate console output between
@@ -164,7 +164,7 @@ def alice(say, recv, send, die, btc_rpc, elt_rpc):
 
     elt_contract_addr = P2SHCoinAddress.from_redeemScript(elt_contract)
 
-    confidential_contract_addr = P2SHConfidentialAddress.from_unconfidential(
+    confidential_contract_addr = P2SHCoinConfidentialAddress.from_unconfidential(
         elt_contract_addr, blinding_key.pub)
     assert isinstance(confidential_contract_addr, CElementsConfidentialAddress)
 
@@ -209,10 +209,10 @@ def alice(say, recv, send, die, btc_rpc, elt_rpc):
     else:
         die('Did not find contract address in transaction')
 
-    if vout.nValue != btc_to_satoshi(pre_agreed_amount):
+    if vout.nValue != coins_to_satoshi(pre_agreed_amount):
         die('the amount {} found at the output in the offered transaction '
             'does not match the expected amount {}'
-            .format(satoshi_to_btc(vout.nValue), pre_agreed_amount))
+            .format(satoshi_to_coins(vout.nValue), pre_agreed_amount))
 
     say('Bitcoin amount match expected values')
 
@@ -383,16 +383,17 @@ def bob(say, recv, send, die, btc_rpc, elt_rpc):
     vout_n, unblind_result = find_and_unblind_vout(
         say, elt_commit_tx, elt_contract_addr, blinding_key, die)
 
-    if unblind_result.amount != btc_to_satoshi(pre_agreed_amount):
+    if unblind_result.amount != coins_to_satoshi(pre_agreed_amount):
         die('the amount {} found at the output in the offered transaction '
             'does not match the expected amount {}'
-            .format(satoshi_to_btc(unblind_result.amount), pre_agreed_amount))
+            .format(satoshi_to_coins(unblind_result.amount),
+                    pre_agreed_amount))
 
     say('The asset and amount match expected values. lets spend it.')
 
     with ChainParams(elements_chain_name):
         dst_addr = CCoinAddress(elt_rpc.getnewaddress())
-        assert isinstance(dst_addr, CConfidentialAddress)
+        assert isinstance(dst_addr, CCoinConfidentialAddress)
 
         say('I will claim my Elements-BTC to {}'.format(dst_addr))
 
@@ -602,8 +603,8 @@ def create_btc_spend_tx(dst_addr, txid, vout_n, btc_contract,
                         spend_key=None, branch_condition=True):
 
     # In real application, the fees should not be static, of course
-    out_amount = (btc_to_satoshi(pre_agreed_amount)
-                  - btc_to_satoshi(fixed_fee_amount))
+    out_amount = (coins_to_satoshi(pre_agreed_amount)
+                  - coins_to_satoshi(fixed_fee_amount))
 
     tx = CMutableTransaction(
         vin=[CTxIn(prevout=COutPoint(hash=lx(txid), n=vout_n))],
@@ -616,7 +617,7 @@ def create_btc_spend_tx(dst_addr, txid, vout_n, btc_contract,
         tx.vin[0].nSequence = bitcoin_contract_timeout
         cond = b''
 
-    in_amount = btc_to_satoshi(pre_agreed_amount)
+    in_amount = coins_to_satoshi(pre_agreed_amount)
     # We used P2WSHCoinAddress to create the address that we sent bitcoin to,
     # so we know that we need to use SIGVERSION_WITNESS_V0
     sighash = btc_contract.sighash(tx, 0, SIGHASH_ALL,
@@ -650,8 +651,8 @@ def create_elt_spend_tx(dst_addr, txid, vout_n, elt_contract, die,
                         blinding_factor=None, asset_blinding_factor=None,
                         branch_condition=True):
 
-    fee_satoshi = btc_to_satoshi(fixed_fee_amount)
-    out_amount = btc_to_satoshi(pre_agreed_amount) - fee_satoshi
+    fee_satoshi = coins_to_satoshi(fixed_fee_amount)
+    out_amount = coins_to_satoshi(pre_agreed_amount) - fee_satoshi
 
     # Single blinded output is not allowed, so we add
     # dummy OP_RETURN output, and we need dummy pubkey for it
@@ -672,7 +673,7 @@ def create_elt_spend_tx(dst_addr, txid, vout_n, elt_contract, die,
 
     output_pubkeys = [dst_addr.blinding_pubkey, dummy_key.pub]
 
-    in_amount = btc_to_satoshi(pre_agreed_amount)
+    in_amount = coins_to_satoshi(pre_agreed_amount)
 
     input_descriptors = [
         BlindingInputDescriptor(
@@ -682,8 +683,8 @@ def create_elt_spend_tx(dst_addr, txid, vout_n, elt_contract, die,
             asset_blinding_factor=asset_blinding_factor)
     ]
 
-    blind_result = blind_transaction(
-        tx, input_descriptors=input_descriptors,
+    blind_result = tx.blind(
+        input_descriptors=input_descriptors,
         output_pubkeys=output_pubkeys)
 
     # The blinding must succeed!
@@ -927,15 +928,6 @@ def participant(func, name, pipe, bitcoin_config_path, elements_config_path):
         do_last_wish(e.__class__.__name__)
         send('bye!')
         sys.exit(-1)
-
-
-def btc_to_satoshi(value):
-    """Simple utility function to convert from BTC to satoshi"""
-    return int(round(float(value) * COIN))
-
-
-def satoshi_to_btc(amount):
-    return float(float(amount) / COIN)
 
 
 def participant_says(name, msg):

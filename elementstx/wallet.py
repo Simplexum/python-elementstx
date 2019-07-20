@@ -11,87 +11,36 @@
 
 # pylama:ignore=E501
 
-from threading import local
-
-from bitcointx.core import AddressEncodingError
 from bitcointx.core.key import (
     CPubKey
 )
-from bitcointx.util import make_frontend_metaclass
-
 from bitcointx.wallet import (
-    CoinWalletIdentityMeta,
+    WalletCoinClassDispatcher, WalletCoinClass,
     CCoinAddress, P2SHCoinAddress, P2WSHCoinAddress,
     P2PKHCoinAddress, P2WPKHCoinAddress,
     CBase58CoinAddress, CBech32CoinAddress,
-    CBase58CoinAddressCommon, CBech32CoinAddressCommon,
-    CBase58CoinKeyBase, CBase58CoinExtPubKeyBase, CBase58CoinExtKeyBase,
-    CCoinAddressBase, CCoinAddressError,
-    P2SHCoinAddressCommon, P2PKHCoinAddressCommon,
-    P2WSHCoinAddressCommon, P2WPKHCoinAddressCommon,
+    CCoinAddressError,
     CCoinKey, CCoinExtKey, CCoinExtPubKey
 )
+from bitcointx.util import dispatcher_mapped_list
+from .core import CoreElementsClassDispatcher
 
-from bitcointx.core.script import CScript
-from .core.script import CElementsScript
 
-_thread_local = local()
-_frontend_metaclass = make_frontend_metaclass('_ElementsWallet', _thread_local)
+class WalletElementsClassDispatcher(WalletCoinClassDispatcher,
+                                    depends=[CoreElementsClassDispatcher]):
+    ...
+
+
+class WalletElementsClass(WalletCoinClass,
+                          metaclass=WalletElementsClassDispatcher):
+    ...
 
 
 class CConfidentialAddressError(CCoinAddressError):
     """Raised when an invalid confidential address is encountered"""
 
 
-class ElementsWalletIdentityMeta(CoinWalletIdentityMeta):
-
-    @classmethod
-    def _get_required_classes(cls):
-        main_classes, extra_classes = \
-            super(cls, ElementsWalletIdentityMeta)._get_required_classes()
-        main_classes.add(CConfidentialAddress)
-        main_classes.add(CBase58ConfidentialAddress)
-        main_classes.add(P2SHConfidentialAddress)
-        main_classes.add(P2PKHConfidentialAddress)
-        return main_classes, extra_classes
-
-    @classmethod
-    def _get_extra_classmap(cls):
-        return {CScript: CElementsScript}
-
-
-class CConfidentialAddress(metaclass=_frontend_metaclass):
-    ...
-
-
-class CBase58ConfidentialAddress(metaclass=_frontend_metaclass):
-    ...
-
-
-class P2SHConfidentialAddress(metaclass=_frontend_metaclass):
-    ...
-
-
-class P2PKHConfidentialAddress(metaclass=_frontend_metaclass):
-    ...
-
-
-class CConfidentialAddressBase:
-
-    def __new__(cls, s):
-        for enc_class in cls._get_encoding_address_classes():
-            try:
-                return enc_class(s)
-            except AddressEncodingError:
-                pass
-
-        raise CCoinAddressError(
-            'Unrecognized encoding for {}' .format(cls.__name__))
-
-    @classmethod
-    def _get_encoding_address_classes(cls):
-        return (cls._concrete_class.CBase58ConfidentialAddress, )
-
+class CCoinConfidentialAddress(CCoinAddress, WalletElementsClass):
     @classmethod
     def from_unconfidential(cls, unconfidential_adr, blinding_pubkey):
         """Convert unconfidential address to confidential
@@ -99,7 +48,7 @@ class CConfidentialAddressBase:
         Raises CConfidentialAddressError if blinding_pubkey is invalid
         (CConfidentialAddressError is a subclass of CCoinAddressError)
 
-        unconfidential_adr can be string or CBase58CoinAddressCommon
+        unconfidential_adr can be string or CBase58CoinAddress
         instance. blinding_pubkey must be a bytes instance
         """
         if not isinstance(blinding_pubkey, (bytes, bytearray)):
@@ -112,23 +61,31 @@ class CConfidentialAddressBase:
             raise CConfidentialAddressError('invalid blinding pubkey')
 
         if not isinstance(unconfidential_adr, CBase58CoinAddress):
-            print(unconfidential_adr.__class__)
             raise CConfidentialAddressError(
                 'non-base58 confidential addresses are not supported for now')
 
-        for enc_cls in cls._get_encoding_address_classes():
-            if issubclass(enc_cls, CBase58CoinAddress):
-                for b58cls in enc_cls._get_base58_address_classes():
-                    if len(b58cls.base58_prefix) > 1 and \
-                            unconfidential_adr.base58_prefix == b58cls.base58_prefix[1:]:
-                        return b58cls.from_bytes(blinding_pubkey + unconfidential_adr)
+        def recursive_search(candidate):
+            b58pfx = getattr(candidate, 'base58_prefix', None)
+            if b58pfx and len(b58pfx) > 1 and \
+                    unconfidential_adr.base58_prefix == b58pfx[1:]:
+                return candidate.from_bytes(blinding_pubkey + unconfidential_adr)
+
+            for next_candidate in dispatcher_mapped_list(candidate):
+                result = recursive_search(next_candidate)
+                if result is not None:
+                    return result
+            return None
+
+        result = recursive_search(cls)
+        if result is not None:
+            return result
 
         raise CConfidentialAddressError(
             'cannot create {} from {}: cannot find matching confidential address class'
             .format(cls, unconfidential_adr.__class__.__name__))
 
     def to_unconfidential(self):
-        return self.__class__._unconfidential_address_class.from_bytes(self[33:])
+        return self._unconfidential_address_class.from_bytes(self[33:])
 
     @property
     def blinding_pubkey(self):
@@ -145,107 +102,122 @@ class CConfidentialAddressBase:
             'cannot create confidential address from scriptPubKey')
 
 
-class CElementsConfidentialAddress(CConfidentialAddressBase,
-                                   metaclass=ElementsWalletIdentityMeta):
+class CBase58CoinConfidentialAddress(CCoinConfidentialAddress, CBase58CoinAddress):
     ...
 
 
-class CElementsAddress(CCoinAddressBase,
-                       metaclass=ElementsWalletIdentityMeta):
+# class CBlech32ConfidentialAddress(CCoinConfidentialAddress, WalletElementsClass):
+
+
+class P2SHCoinConfidentialAddress(CBase58CoinConfidentialAddress,
+                                  next_dispatch_final=True):
     ...
 
 
-class CBase58ElementsAddress(CBase58CoinAddressCommon, CElementsAddress):
-    @classmethod
-    def _get_base58_address_classes(cls):
-        unconf = super(
-            cls, CBase58ElementsAddress)._get_base58_address_classes()
-        return (cls._concrete_class.P2SHConfidentialAddress,
-                cls._concrete_class.P2PKHConfidentialAddress) + unconf
+class P2PKHCoinConfidentialAddress(CBase58CoinConfidentialAddress,
+                                   next_dispatch_final=True):
+    ...
 
 
-class CBase58ElementsConfidentialAddress(CConfidentialAddressBase,
-                                         CBase58CoinAddressCommon,
-                                         CElementsAddress):
+# class P2WSHConfidentialAddress(P2WSHCoinAddress, CBlech32ConfidentialAddress):
+# class P2WPKHConfidentialAddress(P2PKHCoinAddress, CBlech32ConfidentialAddress):
+
+class CElementsAddress(CCoinAddress, WalletElementsClass):
+    ...
+
+
+class CElementsConfidentialAddress(CCoinConfidentialAddress, CElementsAddress):
+    ...
+
+
+class CBase58ElementsAddress(CBase58CoinAddress, CElementsAddress):
+    ...
+
+
+class CBase58ElementsConfidentialAddress(CBase58CoinConfidentialAddress,
+                                         CElementsConfidentialAddress,
+                                         CBase58ElementsAddress):
     base58_prefix = bytes([4])
 
-    @classmethod
-    def _get_base58_address_classes(cls):
-        return (cls._concrete_class.P2SHConfidentialAddress,
-                cls._concrete_class.P2PKHConfidentialAddress)
 
-
-class CBech32ElementsAddress(CBech32CoinAddressCommon, CElementsAddress):
+class CBech32ElementsAddress(CBech32CoinAddress, CElementsAddress):
     bech32_hrp = 'ert'
 
 
 # CBlech32Data is not implemented
-# class CBlech32ElementsConfidentialAddress(CElementsConfidentialAddress,
-#                                           CElementsAddress):
+# class CBlech32ElementsConfidentialAddress(CBlech32ConfidentialAddress,
+#                                           CElementsConfidentialAddress)
 #    bech32_hrp = 'el'
 
 
-class P2SHElementsAddress(P2SHCoinAddressCommon, CBase58ElementsAddress):
+class P2SHElementsAddress(P2SHCoinAddress, CBase58ElementsAddress):
     base58_prefix = bytes([75])
 
 
-class P2PKHElementsAddress(P2PKHCoinAddressCommon, CBase58ElementsAddress):
+class P2PKHElementsAddress(P2PKHCoinAddress, CBase58ElementsAddress):
     base58_prefix = bytes([235])
 
 
-class P2WSHElementsAddress(P2WSHCoinAddressCommon, CBech32ElementsAddress):
+class P2WSHElementsAddress(P2WSHCoinAddress, CBech32ElementsAddress):
     ...
 
 
-class P2WPKHElementsAddress(P2WPKHCoinAddressCommon, CBech32ElementsAddress):
+class P2WPKHElementsAddress(P2WPKHCoinAddress, CBech32ElementsAddress):
     ...
 
 
-class P2PKHElementsConfidentialAddress(CElementsConfidentialAddress,
-                                       CBase58ElementsAddress):
+class P2PKHElementsConfidentialAddress(CBase58ElementsConfidentialAddress,
+                                       P2PKHCoinConfidentialAddress):
     base58_prefix = b'\x04\xEB'
     _unconfidential_address_class = P2PKHElementsAddress
 
 
-class P2SHElementsConfidentialAddress(CElementsConfidentialAddress,
-                                      CBase58ElementsAddress):
+P2PKHElementsAddress.register(P2PKHElementsConfidentialAddress)
+
+
+class P2SHElementsConfidentialAddress(CBase58ElementsConfidentialAddress,
+                                      P2SHCoinConfidentialAddress):
     base58_prefix = b'\x04\x4B'
     _unconfidential_address_class = P2SHElementsAddress
 
 
-class CElementsKey(CBase58CoinKeyBase,
-                   metaclass=ElementsWalletIdentityMeta):
+P2SHElementsAddress.register(P2SHElementsConfidentialAddress)
+
+
+class CElementsKey(CCoinKey, WalletElementsClass):
     base58_prefix = bytes([239])
 
 
-class CElementsExtPubKey(CBase58CoinExtPubKeyBase,
-                         metaclass=ElementsWalletIdentityMeta):
+class CElementsExtPubKey(CCoinExtPubKey, WalletElementsClass):
     base58_prefix = b'\x04\x35\x87\xCF'
 
 
-class CElementsExtKey(CBase58CoinExtKeyBase,
-                      metaclass=ElementsWalletIdentityMeta):
+class CElementsExtKey(CCoinExtKey, WalletElementsClass):
     base58_prefix = b'\x04\x35\x83\x94'
 
 
-CBase58CoinAddress.register(CBase58ConfidentialAddress)
-
-ElementsWalletIdentityMeta.set_classmap({
-    CCoinAddress: CElementsAddress,
-    CConfidentialAddress: CElementsConfidentialAddress,
-    P2SHConfidentialAddress: P2SHElementsConfidentialAddress,
-    P2PKHConfidentialAddress: P2PKHElementsConfidentialAddress,
-    CBase58ConfidentialAddress: CBase58ElementsConfidentialAddress,
-    # CBlech32ConfidentialAddress: CBlech32ElementsConfidentialAddress,
-    CBase58CoinAddress: CBase58ElementsAddress,
-    CBech32CoinAddress: CBech32ElementsAddress,
-    P2SHCoinAddress: P2SHElementsAddress,
-    P2PKHCoinAddress: P2PKHElementsAddress,
-    P2WSHCoinAddress: P2WSHElementsAddress,
-    P2WPKHCoinAddress: P2WPKHElementsAddress,
-    CCoinKey: CElementsKey,
-    CCoinExtKey: CElementsExtKey,
-    CCoinExtPubKey: CElementsExtPubKey,
-})
-
-ElementsWalletIdentityMeta.activate(_thread_local)
+__all__ = (
+    'CConfidentialAddressError',
+    'CCoinConfidentialAddress',
+    'CBase58CoinConfidentialAddress',
+    # 'CBlech32ConfidentialAddress',
+    'P2SHCoinConfidentialAddress',
+    'P2PKHCoinConfidentialAddress',
+    # 'P2WSHConfidentialAddress',
+    # 'P2WPKHConfidentialAddress',
+    'CElementsAddress',
+    'CElementsConfidentialAddress',
+    'CBase58ElementsAddress',
+    'CBase58ElementsConfidentialAddress',
+    # 'CBech32ElementsAddress',
+    # 'CBlech32ElementsConfidentialAddress',
+    'P2SHElementsAddress',
+    'P2PKHElementsAddress',
+    'P2WSHElementsAddress',
+    'P2WPKHElementsAddress',
+    'P2PKHElementsConfidentialAddress',
+    'P2SHElementsConfidentialAddress',
+    'CElementsKey',
+    'CElementsExtPubKey',
+    'CElementsExtKey',
+)

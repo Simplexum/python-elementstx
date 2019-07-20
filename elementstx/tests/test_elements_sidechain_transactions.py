@@ -20,7 +20,7 @@ import unittest
 
 import bitcointx
 from bitcointx.core import (
-    x, lx, b2lx, b2x, COIN, Uint256,
+    x, lx, b2lx, b2x, Uint256, coins_to_satoshi,
     CTransaction, CMutableTransaction,
     COutPoint, CTxIn, CTxOut, CTxWitness,
     CMutableTxOut, CMutableTxIn, CMutableTxWitness,
@@ -33,17 +33,16 @@ from bitcointx.core.script import (
     CScriptWitness
 )
 from bitcointx.core.scripteval import VerifyScript
-from bitcointx.core.serialize import is_mut_inst
 from bitcointx.core.key import CPubKey, CKey
 from bitcointx.wallet import (
     CCoinAddress, CCoinKey,
-    P2PKHCoinAddressCommon, P2SHCoinAddressCommon
+    P2PKHCoinAddress, P2SHCoinAddress
 )
 from elementstx.core import (
     CAsset, CConfidentialValue, CConfidentialAsset, CConfidentialNonce,
     calculate_asset, generate_asset_entropy, calculate_reissuance_token,
     CElementsTransaction, CElementsMutableTransaction,
-    blind_transaction, BlindingInputDescriptor
+    BlindingInputDescriptor
 )
 from elementstx.wallet import (
     P2PKHElementsAddress, P2SHElementsAddress
@@ -147,7 +146,7 @@ class Test_CMutableTxOut(ElementsTestSetupBase, unittest.TestCase):
         T(CMutableTxOut(),
           "CElementsMutableTxOut(CConfidentialValue(x('')), CElementsScript([]), CConfidentialAsset(x('')), CConfidentialNonce(x('')))")
 
-    def test_immutable(self):
+    def test_mutable(self):
         """CTxIn shall be mutable"""
         txout = CMutableTxOut()
         txout.nValue = None
@@ -249,19 +248,21 @@ class Test_Elements_CTransaction(ElementsTestSetupBase, unittest.TestCase):
                         self.assertIsNotNone(rpinfo)
                         self.assertEqual(vout['ct-exponent'], rpinfo.exp)
                         self.assertEqual(vout['ct-bits'], rpinfo.mantissa)
-                        self.assertEqual(int(round(vout['value-minimum']*COIN)), rpinfo.value_min)
-                        self.assertEqual(int(round(vout['value-maximum']*COIN)), rpinfo.value_max)
+                        self.assertEqual(coins_to_satoshi(vout['value-minimum'], check_range=False),
+                                         rpinfo.value_min)
+                        self.assertEqual(coins_to_satoshi(vout['value-maximum'], check_range=False),
+                                         rpinfo.value_max)
                     else:
                         self.assertTrue(rpinfo is None or rpinfo.exp == -1)
                         if rpinfo is None:
                             value = tx.vout[n].nValue.to_amount()
                         else:
                             value = rpinfo.value_min
-                        self.assertEqual(int(round(vout['value']*COIN)), value)
+                        self.assertEqual(coins_to_satoshi(vout['value']), value)
                 else:
                     warn_zkp_unavailable()
                     if 'value' in vout and tx.vout[n].nValue.is_explicit():
-                        self.assertEqual(int(round(vout['value']*COIN)), tx.vout[n].nValue.to_amount())
+                        self.assertEqual(coins_to_satoshi(vout['value']), tx.vout[n].nValue.to_amount())
 
             for n, vin in enumerate(tx_decoded['vin']):
                 if 'scripSig' in vin:
@@ -310,13 +311,13 @@ class Test_Elements_CTransaction(ElementsTestSetupBase, unittest.TestCase):
                             self.assertEqual(iss['token'], reiss_token.to_hex())
                         self.assertEqual(iss['asset'], asset.to_hex())
                     if 'assetamount' in iss:
-                        self.assertEqual(int(round(iss['assetamount']*COIN)),
+                        self.assertEqual(coins_to_satoshi(iss['assetamount']),
                                          tx.vin[n].assetIssuance.nAmount.to_amount())
                     elif 'assetamountcommitment' in iss:
                         self.assertEqual(iss['assetamountcommitment'],
                                          b2x(tx.vin[n].assetIssuance.nAmount.commitment))
                     if 'tokenamount' in iss:
-                        self.assertEqual(int(round(iss['tokenamount']*COIN)),
+                        self.assertEqual(coins_to_satoshi(iss['tokenamount']),
                                          tx.vin[n].assetIssuance.nInflationKeys.to_amount())
                     elif 'tokenamountcommitment' in iss:
                         self.assertEqual(iss['tokenamountcommitment'],
@@ -326,8 +327,9 @@ class Test_Elements_CTransaction(ElementsTestSetupBase, unittest.TestCase):
                     blinding_derivation_key, asset_commitments=()):
         input_descriptors = []
         for utxo in bundle['vin_utxo']:
+            amount = -1 if utxo['amount'] == -1 else coins_to_satoshi(utxo['amount'])
             input_descriptors.append(
-                BlindingInputDescriptor(amount=int(round(utxo['amount']*COIN)),
+                BlindingInputDescriptor(amount=amount,
                                         asset=CAsset(lx(utxo['asset'])),
                                         blinding_factor=Uint256(lx(utxo['blinder'])),
                                         asset_blinding_factor=Uint256(lx(utxo['assetblinder'])))
@@ -382,8 +384,7 @@ class Test_Elements_CTransaction(ElementsTestSetupBase, unittest.TestCase):
         # In this case, you need to supply the asset commitments for
         # all of the inputs of the final transaction, even if currently
         # blinded transaction template does not contain these inputs.
-        blind_result = blind_transaction(
-            tx_to_blind,
+        blind_result = tx_to_blind.blind(
             input_descriptors=input_descriptors,
             output_pubkeys=output_pubkeys,
             blind_issuance_asset_keys=blind_issuance_asset_keys,
@@ -408,8 +409,7 @@ class Test_Elements_CTransaction(ElementsTestSetupBase, unittest.TestCase):
         if all(_k is None for _k in blind_issuance_asset_keys):
             random.seed(bundle['rand_seed'])
             tx_to_blind2 = unblinded_tx.to_mutable()
-            blind_result2 = blind_transaction(
-                tx_to_blind2,
+            blind_result2 = tx_to_blind2.blind(
                 input_descriptors=input_descriptors,
                 output_pubkeys=output_pubkeys,
                 blind_issuance_asset_keys=blind_issuance_asset_keys,
@@ -468,7 +468,7 @@ class Test_Elements_CTransaction(ElementsTestSetupBase, unittest.TestCase):
 
                 ub_info = bundle['unblinded_vout_info'][n]
                 if len(ub_info):
-                    self.assertEqual(int(round(ub_info['amount']*COIN)), unblind_result.amount)
+                    self.assertEqual(coins_to_satoshi(ub_info['amount']), unblind_result.amount)
                     self.assertEqual(ub_info['asset'], unblind_result.asset.to_hex())
                     self.assertEqual(ub_info['blinding_factor'],
                                      unblind_result.blinding_factor.to_hex())
@@ -479,13 +479,13 @@ class Test_Elements_CTransaction(ElementsTestSetupBase, unittest.TestCase):
         tx_to_sign = blinded_tx.to_mutable()
         for n, vin in enumerate(tx_to_sign.vin):
             utxo = bundle['vin_utxo'][n]
-            amount = int(round(utxo['amount']*COIN))
+            amount = -1 if utxo['amount'] == -1 else coins_to_satoshi(utxo['amount'])
 
             scriptPubKey = CScript(x(utxo['scriptPubKey']))
             a = CCoinAddress(utxo['address'])
             if 'privkey' in utxo:
                 privkey = CCoinKey(utxo['privkey'])
-                assert isinstance(a, P2PKHCoinAddressCommon),\
+                assert isinstance(a, P2PKHCoinAddress),\
                     "only P2PKH is supported for single-sig"
                 assert a == P2PKHElementsAddress.from_pubkey(privkey.pub)
                 assert scriptPubKey == a.to_scriptPubKey()
@@ -499,7 +499,7 @@ class Test_Elements_CTransaction(ElementsTestSetupBase, unittest.TestCase):
                 redeem_script.extend([pk.pub for pk in pk_list])
                 redeem_script.extend([len(pk_list), OP_CHECKMULTISIG])
                 redeem_script = CScript(redeem_script)
-                assert isinstance(a, P2SHCoinAddressCommon),\
+                assert isinstance(a, P2SHCoinAddress),\
                     "only P2SH is supported for multi-sig."
                 assert scriptPubKey == redeem_script.to_p2sh_scriptPubKey()
                 assert a == P2SHElementsAddress.from_scriptPubKey(
@@ -626,12 +626,12 @@ class Test_Elements_CTransaction(ElementsTestSetupBase, unittest.TestCase):
         self.assertIsInstance(tx, CElementsMutableTransaction)
 
         def check_mutable_parts(tx):
-            self.assertTrue(is_mut_inst(tx.vin[0]))
-            self.assertTrue(is_mut_inst(tx.vin[0].prevout))
-            self.assertTrue(is_mut_inst(tx.vout[0]))
-            self.assertTrue(is_mut_inst(tx.wit))
-            self.assertTrue(is_mut_inst(tx.wit.vtxinwit[0]))
-            self.assertTrue(is_mut_inst(tx.wit.vtxoutwit[0]))
+            self.assertTrue(tx.vin[0].is_mutable())
+            self.assertTrue(tx.vin[0].prevout.is_mutable())
+            self.assertTrue(tx.vout[0].is_mutable())
+            self.assertTrue(tx.wit.is_mutable())
+            self.assertTrue(tx.wit.vtxinwit[0].is_mutable())
+            self.assertTrue(tx.wit.vtxoutwit[0].is_mutable())
 
         check_mutable_parts(tx)
 
@@ -645,11 +645,11 @@ class Test_Elements_CTransaction(ElementsTestSetupBase, unittest.TestCase):
         # methods, and not directly
 
         txin = CMutableTxIn(prevout=COutPoint(hash=b'a'*32, n=0))
-        self.assertTrue(is_mut_inst(txin.prevout))
+        self.assertTrue(txin.prevout.is_mutable())
 
         wit = CMutableTxWitness((CTxInWitness(),), (CTxOutWitness(),))
-        self.assertTrue(is_mut_inst(wit.vtxinwit[0]))
-        self.assertTrue(is_mut_inst(wit.vtxoutwit[0]))
+        self.assertTrue(wit.vtxinwit[0].is_mutable())
+        self.assertTrue(wit.vtxoutwit[0].is_mutable())
 
     def test_immutable_tx_creation_with_mutable_parts_specified(self):
         tx = CTransaction(
@@ -662,12 +662,12 @@ class Test_Elements_CTransaction(ElementsTestSetupBase, unittest.TestCase):
         self.assertIsInstance(tx, CElementsTransaction)
 
         def check_immutable_parts(tx):
-            self.assertTrue(not is_mut_inst(tx.vin[0]))
-            self.assertTrue(not is_mut_inst(tx.vin[0].prevout))
-            self.assertTrue(not is_mut_inst(tx.vout[0]))
-            self.assertTrue(not is_mut_inst(tx.wit))
-            self.assertTrue(not is_mut_inst(tx.wit.vtxinwit[0]))
-            self.assertTrue(not is_mut_inst(tx.wit.vtxoutwit[0]))
+            self.assertTrue(not tx.vin[0].is_mutable())
+            self.assertTrue(not tx.vin[0].prevout.is_mutable())
+            self.assertTrue(not tx.vout[0].is_mutable())
+            self.assertTrue(not tx.wit.is_mutable())
+            self.assertTrue(not tx.wit.vtxinwit[0].is_mutable())
+            self.assertTrue(not tx.wit.vtxoutwit[0].is_mutable())
 
         check_immutable_parts(tx)
 
@@ -681,8 +681,8 @@ class Test_Elements_CTransaction(ElementsTestSetupBase, unittest.TestCase):
         # methods, and not directly
 
         txin = CTxIn(prevout=CMutableOutPoint(hash=b'a'*32, n=0))
-        self.assertTrue(not is_mut_inst(txin.prevout))
+        self.assertTrue(not txin.prevout.is_mutable())
 
         wit = CTxWitness((CMutableTxInWitness(),), (CMutableTxOutWitness(),))
-        self.assertTrue(not is_mut_inst(wit.vtxinwit[0]))
-        self.assertTrue(not is_mut_inst(wit.vtxoutwit[0]))
+        self.assertTrue(not wit.vtxinwit[0].is_mutable())
+        self.assertTrue(not wit.vtxoutwit[0].is_mutable())
