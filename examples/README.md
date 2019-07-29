@@ -218,7 +218,14 @@ Let's check the current balance at node2, before we send our newly build transac
     >     "a6be6b365498cd451be75ba0f68c258ee01e08f3cb30d5f8469f6628db58dc61": 2.00000000
     > }
 
-Let's send the transaction
+If getbalance does not show the expected balance, that might be because the second node do not yet accounted for incoming transaction we sent to it earlier. Do sync the balance, we can generate a block:
+
+    ~/$ e1-cli generatetoaddress 1 AzpnEJpGpUt9QM7UDkc51XtRZh9GeiQmG5nWJC2a7vzSJb8N47MGXj3VXCRQj5BNqYTmH771sMusrV7w
+    > [
+    >   "943900fc6ce5351872020cc5d07d8563dc43f725f2d389a925501fbe76b2780c"
+    > ]
+
+Now let's send the transaction
 
     ~/$ e1-cli sendrawtransaction `cat blinded_tx`
     > 4a933d32238a2238f52fdfc6aad0fdc0be2cbaeb7bb48c482409c135d1ef8f81
@@ -244,9 +251,9 @@ If we followed the instructions at https://elementsproject.org/elements-code-tut
 Let's generate a new regtest block, so our new transaction will be confirmed
 
     ~/$ e1-cli generatetoaddress 1 AzpnEJpGpUt9QM7UDkc51XtRZh9GeiQmG5nWJC2a7vzSJb8N47MGXj3VXCRQj5BNqYTmH771sMusrV7w
-   > [
-   >   "6b58105845a8e9ebb45a164d771bf9263071fc155e656974053c5dcfda4f58d3"
-   > ]
+    > [
+    >   "6b58105845a8e9ebb45a164d771bf9263071fc155e656974053c5dcfda4f58d3"
+    > ]
 
 And then check the balance at node1
 
