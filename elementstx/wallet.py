@@ -11,6 +11,8 @@
 
 # pylama:ignore=E501
 
+from io import BytesIO
+
 from bitcointx.core.key import (
     CPubKey
 )
@@ -23,7 +25,11 @@ from bitcointx.wallet import (
     CCoinKey, CCoinExtKey, CCoinExtPubKey
 )
 from bitcointx.util import dispatcher_mapped_list
-from .core import CoreElementsClassDispatcher
+from .core import (
+    CoreElementsClassDispatcher, CElementsTxOut,
+    CConfidentialCommitmentBase, CConfidentialValue, CConfidentialAsset,
+    CConfidentialNonce
+)
 
 
 class WalletElementsClassDispatcher(WalletCoinClassDispatcher,
@@ -101,6 +107,16 @@ class CCoinConfidentialAddress(CCoinAddress, WalletElementsClass):
         raise CCoinAddressError(
             'cannot create confidential address from scriptPubKey')
 
+    def get_output_size(self):
+        dummy_commitment = b'\x00'*CConfidentialCommitmentBase._committedSize
+        txo = CElementsTxOut(scriptPubKey=self.to_scriptPubKey(),
+                             nValue=CConfidentialValue(dummy_commitment),
+                             nAsset=CConfidentialAsset(dummy_commitment),
+                             nNonce=CConfidentialNonce(dummy_commitment))
+        f = BytesIO()
+        txo.stream_serialize(f)
+        return len(f.getbuffer())
+
 
 class CBase58CoinConfidentialAddress(CCoinConfidentialAddress, CBase58CoinAddress):
     ...
@@ -123,7 +139,12 @@ class P2PKHCoinConfidentialAddress(CBase58CoinConfidentialAddress,
 # class P2WPKHConfidentialAddress(P2PKHCoinAddress, CBlech32ConfidentialAddress):
 
 class CElementsAddress(CCoinAddress, WalletElementsClass):
-    ...
+    def get_output_size(self):
+        txo = CElementsTxOut(scriptPubKey=self.to_scriptPubKey(),
+                             nValue=CConfidentialValue(0))
+        f = BytesIO()
+        txo.stream_serialize(f)
+        return len(f.getbuffer())
 
 
 class CElementsConfidentialAddress(CCoinConfidentialAddress, CElementsAddress):

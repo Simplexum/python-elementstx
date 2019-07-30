@@ -101,6 +101,12 @@ class CConfidentialCommitmentBase(ImmutableSerializable):
     __slots__ = ['commitment']
 
     def __init__(self, commitment=b''):
+        allowed_sizes = (0, self._explicitSize, self._committedSize)
+        if len(commitment) not in allowed_sizes:
+            raise ValueError(
+                'invalid length of commitment, expected length to be one of '
+                '{}, but got commitment of length {}'
+                .format(allowed_sizes, len(commitment)))
         object.__setattr__(self, 'commitment', bytes(commitment))
 
     @classmethod
