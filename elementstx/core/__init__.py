@@ -339,8 +339,8 @@ class CElementsTxOutWitness(CTxOutWitness, CoreElementsClass):
     def __init__(self, surjectionproof=b'', rangeproof=b''):
         assert isinstance(surjectionproof, (bytes, bytearray))
         assert isinstance(rangeproof, (bytes, bytearray))
-        object.__setattr__(self, 'surjectionproof', CElementsScript(surjectionproof))
-        object.__setattr__(self, 'rangeproof', CElementsScript(rangeproof))
+        object.__setattr__(self, 'surjectionproof', surjectionproof)
+        object.__setattr__(self, 'rangeproof', rangeproof)
 
     @no_bool_use_as_property
     def is_null(self):
@@ -348,8 +348,8 @@ class CElementsTxOutWitness(CTxOutWitness, CoreElementsClass):
 
     @classmethod
     def stream_deserialize(cls, f):
-        surjectionproof = CElementsScript(BytesSerializer.stream_deserialize(f))
-        rangeproof = CElementsScript(BytesSerializer.stream_deserialize(f))
+        surjectionproof = BytesSerializer.stream_deserialize(f)
+        rangeproof = BytesSerializer.stream_deserialize(f)
         return cls(surjectionproof, rangeproof)
 
     def stream_serialize(self, f):
