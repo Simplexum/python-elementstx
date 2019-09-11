@@ -17,7 +17,8 @@ import elementstx.wallet
 from bitcointx import BitcoinMainnetParams
 
 
-class ElementsParams(BitcoinMainnetParams, name='elements'):
+class ElementsParams(BitcoinMainnetParams,
+                     name=('elements', 'elements/elementsregtest')):
     RPC_PORT = 7041
     WALLET_DISPATCHER = elementstx.wallet.WalletElementsClassDispatcher
 
