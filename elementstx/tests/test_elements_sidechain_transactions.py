@@ -58,7 +58,7 @@ def warn_zkp_unavailable():
         log = logging.getLogger("Test_Elements_CTransaction")
         log.warning(' secp256k1-zkp unavailable')
         log.warning(' skipping rangeproof checks.')
-        log.warning(' If you do not need Elements funcionality, it is safe to ignore this warning.')
+        log.warning(' If you do not need Elements blind/unblind funcionality, it is safe to ignore this warning.')
         zkp_unavailable_warning_shown = True
 
 
