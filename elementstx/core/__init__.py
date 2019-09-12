@@ -33,7 +33,7 @@ from elementstx.core.secp256k1 import (
 )
 
 from bitcointx.core.key import (
-    CKey, CKeyMixin, CPubKey
+    CKey, CKeyBase, CPubKey
 )
 
 from bitcointx.core import (
@@ -1436,7 +1436,7 @@ def unblind_confidential_pair(key, confValue, confAsset, nNonce,  # noqa
     returns a tuple of (success, result)
     If success is True, result is BlindingInputDescriptor namedtuple.
     If success is False, result is a string describing the cause of failure"""
-    assert isinstance(key, CKeyMixin)
+    assert isinstance(key, CKeyBase)
     assert isinstance(confValue, CConfidentialValue)
     assert isinstance(confAsset, CConfidentialAsset)
     assert isinstance(nNonce, CConfidentialNonce)
@@ -1561,7 +1561,7 @@ def unblind_confidential_pair(key, confValue, confAsset, nNonce,  # noqa
 
 
 def derive_blinding_key(blinding_derivation_key, script):
-    assert isinstance(blinding_derivation_key, CKeyMixin)
+    assert isinstance(blinding_derivation_key, CKeyBase)
     # based on Elements Core's blinding key derivation logic
     # as of commit 43f6cdbd3147d9af450b73c8b8b8936e3e4166df
     return CKey(hmac.new(blinding_derivation_key.secret_bytes, script,
