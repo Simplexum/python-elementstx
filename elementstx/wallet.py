@@ -30,6 +30,7 @@ from .core import (
     CConfidentialCommitmentBase, CConfidentialValue, CConfidentialAsset,
     CConfidentialNonce
 )
+import elementstx.blech32
 
 
 class WalletElementsClassDispatcher(WalletCoinClassDispatcher,
@@ -39,6 +40,16 @@ class WalletElementsClassDispatcher(WalletCoinClassDispatcher,
 
 class WalletElementsClass(WalletCoinClass,
                           metaclass=WalletElementsClassDispatcher):
+    ...
+
+
+class WalletElementsLiquidV1ClassDispatcher(WalletCoinClassDispatcher,
+                                            depends=[CoreElementsClassDispatcher]):
+    ...
+
+
+class WalletElementsLiquidV1Class(WalletCoinClass,
+                                  metaclass=WalletElementsLiquidV1ClassDispatcher):
     ...
 
 
@@ -66,29 +77,24 @@ class CCoinConfidentialAddress(CCoinAddress):
         if not blinding_pubkey.is_fullyvalid():
             raise CConfidentialAddressError('invalid blinding pubkey')
 
-        if not isinstance(unconfidential_adr, CBase58CoinAddress):
-            raise CConfidentialAddressError(
-                'non-base58 confidential addresses are not supported for now')
-
-        def recursive_search(candidate):
-            b58pfx = getattr(candidate, 'base58_prefix', None)
-            if b58pfx and len(b58pfx) > 1 and \
-                    unconfidential_adr.base58_prefix == b58pfx[1:]:
-                return candidate.from_bytes(blinding_pubkey + unconfidential_adr)
-
-            for next_candidate in dispatcher_mapped_list(candidate):
-                result = recursive_search(next_candidate)
-                if result is not None:
-                    return result
-            return None
-
-        result = recursive_search(cls)
-        if result is not None:
-            return result
+        clsmap = {
+            P2PKHCoinAddress: P2PKHCoinConfidentialAddress,
+            P2WPKHCoinAddress: P2WPKHCoinConfidentialAddress,
+            P2SHCoinAddress: P2SHCoinConfidentialAddress,
+            P2WSHCoinAddress: P2WSHCoinConfidentialAddress,
+        }
+        for unconf_cls, conf_cls in clsmap.items():
+            if isinstance(unconfidential_adr, unconf_cls):
+                return conf_cls.from_bytes(blinding_pubkey + unconfidential_adr)
+            if isinstance(cls, conf_cls):
+                raise CConfidentialAddressError(
+                    'cannot create {} from {}: only {} is accepted'
+                    .format(cls, unconfidential_adr.__class__.__name__,
+                            unconf_cls))
 
         raise CConfidentialAddressError(
-            'cannot create {} from {}: cannot find matching confidential address class'
-            .format(cls, unconfidential_adr.__class__.__name__))
+            'cannot create {} from {}: no matching confidential address class'
+            .format(cls.__name__, unconfidential_adr.__class__.__name__))
 
     def to_unconfidential(self):
         return self._unconfidential_address_class.from_bytes(self[33:])
@@ -122,7 +128,54 @@ class CBase58CoinConfidentialAddress(CCoinConfidentialAddress, CBase58CoinAddres
     ...
 
 
-# class CBlech32ConfidentialAddress(CCoinConfidentialAddress):
+class CBlech32AddressError(CCoinAddressError):
+    """Raised when an invalid blech32-encoded address is encountered"""
+
+
+class P2WSHCoinConfidentialAddressError(CBlech32AddressError):
+    """Raised when an invalid P2SH confidential address is encountered"""
+
+
+class P2WPKHCoinConfidentialAddressError(CBlech32AddressError):
+    """Raised when an invalid P2PKH confidential address is encountered"""
+
+
+class CBlech32CoinConfidentialAddress(elementstx.blech32.CBlech32Data,
+                                      CCoinConfidentialAddress):
+    """A Blech32-encoded coin confidential address"""
+
+    _data_length = None
+    _witness_version = None
+
+    @classmethod
+    def from_bytes(cls, witprog, witver=None):
+        if cls._witness_version is None:
+            assert witver is not None, \
+                ("witver must be specified for {}.from_bytes()"
+                 .format(cls.__name__))
+            for candidate in dispatcher_mapped_list(cls):
+                if len(witprog) == candidate._data_length and \
+                        witver == candidate._witness_version:
+                    break
+            else:
+                raise CBlech32AddressError(
+                    'witness program does not match any known Blech32 '
+                    'address length or version')
+        else:
+            candidate = cls
+
+        if len(witprog) != candidate._data_length or \
+                (witver is not None and witver != candidate._witness_version):
+            raise CBlech32AddressError(
+                'witness program does not match {}'
+                ' expected length or version'.format(cls.__name__))
+
+        self = super(CBlech32CoinConfidentialAddress, cls).from_bytes(
+            bytes(witprog), witver=candidate._witness_version
+        )
+        self.__class__ = candidate
+
+        return self
 
 
 class P2SHCoinConfidentialAddress(CBase58CoinConfidentialAddress,
@@ -135,16 +188,31 @@ class P2PKHCoinConfidentialAddress(CBase58CoinConfidentialAddress,
     ...
 
 
-# class P2WSHConfidentialAddress(P2WSHCoinAddress, CBlech32ConfidentialAddress):
-# class P2WPKHConfidentialAddress(P2PKHCoinAddress, CBlech32ConfidentialAddress):
+class P2WSHCoinConfidentialAddress(CBlech32CoinConfidentialAddress,
+                                   next_dispatch_final=True):
+    _data_length = 32 + 33
+    _witness_version = 0
+    _scriptpubkey_type = 'witness_v0_scripthash'
 
-class CElementsAddress(CCoinAddress, WalletElementsClass):
+
+class P2WPKHCoinConfidentialAddress(CBlech32CoinConfidentialAddress,
+                                    next_dispatch_final=True):
+    _data_length = 20 + 33
+    _witness_version = 0
+    _scriptpubkey_type = 'witness_v0_keyhash'
+
+
+class CElementsAddressBase(CCoinAddress):
     def get_output_size(self):
         txo = CElementsTxOut(scriptPubKey=self.to_scriptPubKey(),
                              nValue=CConfidentialValue(0))
         f = BytesIO()
         txo.stream_serialize(f)
         return len(f.getbuffer())
+
+
+class CElementsAddress(CElementsAddressBase, WalletElementsClass):
+    ...
 
 
 class CElementsConfidentialAddress(CCoinConfidentialAddress, CElementsAddress):
@@ -165,10 +233,9 @@ class CBech32ElementsAddress(CBech32CoinAddress, CElementsAddress):
     bech32_hrp = 'ert'
 
 
-# CBlech32Data is not implemented
-# class CBlech32ElementsConfidentialAddress(CBlech32ConfidentialAddress,
-#                                           CElementsConfidentialAddress)
-#    bech32_hrp = 'el'
+class CBlech32ElementsConfidentialAddress(CBlech32CoinConfidentialAddress,
+                                          CElementsConfidentialAddress):
+    blech32_hrp = 'el'
 
 
 class P2SHElementsAddress(P2SHCoinAddress, CBase58ElementsAddress):
@@ -189,20 +256,24 @@ class P2WPKHElementsAddress(P2WPKHCoinAddress, CBech32ElementsAddress):
 
 class P2PKHElementsConfidentialAddress(CBase58ElementsConfidentialAddress,
                                        P2PKHCoinConfidentialAddress):
-    base58_prefix = b'\x04\xEB'
+    base58_prefix = bytes([4, 235])
     _unconfidential_address_class = P2PKHElementsAddress
-
-
-P2PKHElementsAddress.register(P2PKHElementsConfidentialAddress)
 
 
 class P2SHElementsConfidentialAddress(CBase58ElementsConfidentialAddress,
                                       P2SHCoinConfidentialAddress):
-    base58_prefix = b'\x04\x4B'
+    base58_prefix = bytes([4, 75])
     _unconfidential_address_class = P2SHElementsAddress
 
 
-P2SHElementsAddress.register(P2SHElementsConfidentialAddress)
+class P2WPKHElementsConfidentialAddress(CBlech32ElementsConfidentialAddress,
+                                        P2WPKHCoinConfidentialAddress):
+    _unconfidential_address_class = P2WPKHElementsAddress
+
+
+class P2WSHElementsConfidentialAddress(CBlech32ElementsConfidentialAddress,
+                                       P2WSHCoinConfidentialAddress):
+    _unconfidential_address_class = P2WSHElementsAddress
 
 
 class CElementsKey(CCoinKey, WalletElementsClass):
@@ -217,21 +288,98 @@ class CElementsExtKey(CCoinExtKey, WalletElementsClass):
     base58_prefix = b'\x04\x35\x83\x94'
 
 
+class CElementsLiquidV1Address(CElementsAddressBase, WalletElementsLiquidV1Class):
+    ...
+
+
+class CElementsLiquidV1ConfidentialAddress(CCoinConfidentialAddress, CElementsLiquidV1Address):
+    ...
+
+
+class CBase58ElementsLiquidV1Address(CBase58CoinAddress, CElementsLiquidV1Address):
+    ...
+
+
+class CBase58ElementsLiquidV1ConfidentialAddress(CBase58CoinConfidentialAddress,
+                                                 CElementsLiquidV1ConfidentialAddress,
+                                                 CBase58ElementsLiquidV1Address):
+    ...
+
+
+class CBech32ElementsLiquidV1Address(CBech32CoinAddress, CElementsLiquidV1Address):
+    bech32_hrp = 'ex'
+
+
+class CBlech32ElementsLiquidV1ConfidentialAddress(CBlech32CoinConfidentialAddress,
+                                                  CElementsLiquidV1ConfidentialAddress):
+    blech32_hrp = 'lq'
+
+
+class P2SHElementsLiquidV1Address(P2SHCoinAddress, CBase58ElementsLiquidV1Address):
+    base58_prefix = bytes([39])
+
+
+class P2PKHElementsLiquidV1Address(P2PKHCoinAddress, CBase58ElementsLiquidV1Address):
+    base58_prefix = bytes([57])
+
+
+class P2WSHElementsLiquidV1Address(P2WSHCoinAddress, CBech32ElementsLiquidV1Address):
+    ...
+
+
+class P2WPKHElementsLiquidV1Address(P2WPKHCoinAddress, CBech32ElementsLiquidV1Address):
+    ...
+
+
+class P2PKHElementsLiquidV1ConfidentialAddress(CBase58ElementsLiquidV1ConfidentialAddress,
+                                               P2PKHCoinConfidentialAddress):
+    base58_prefix = bytes([12, 57])
+    _unconfidential_address_class = P2PKHElementsLiquidV1Address
+
+
+class P2SHElementsLiquidV1ConfidentialAddress(CBase58ElementsLiquidV1ConfidentialAddress,
+                                              P2SHCoinConfidentialAddress):
+    base58_prefix = bytes([12, 39])
+    _unconfidential_address_class = P2SHElementsLiquidV1Address
+
+
+class P2WPKHElementsLiquidV1ConfidentialAddress(CBlech32ElementsLiquidV1ConfidentialAddress,
+                                                P2WPKHCoinConfidentialAddress):
+    _unconfidential_address_class = P2WPKHElementsLiquidV1Address
+
+
+class P2WSHElementsLiquidV1ConfidentialAddress(CBlech32ElementsLiquidV1ConfidentialAddress,
+                                               P2WSHCoinConfidentialAddress):
+    _unconfidential_address_class = P2WSHElementsLiquidV1Address
+
+
+class CElementsLiquidV1Key(CCoinKey, WalletElementsLiquidV1Class):
+    base58_prefix = bytes([239])
+
+
+class CElementsLiquidV1ExtPubKey(CCoinExtPubKey, WalletElementsLiquidV1Class):
+    base58_prefix = b'\x04\x88\xB2\x1E'
+
+
+class CElementsLiquidV1ExtKey(CCoinExtKey, WalletElementsLiquidV1Class):
+    base58_prefix = b'\x04\x88\xAD\xE4'
+
+
 __all__ = (
     'CConfidentialAddressError',
     'CCoinConfidentialAddress',
     'CBase58CoinConfidentialAddress',
-    # 'CBlech32ConfidentialAddress',
+    'CBlech32CoinConfidentialAddress',
     'P2SHCoinConfidentialAddress',
     'P2PKHCoinConfidentialAddress',
-    # 'P2WSHConfidentialAddress',
-    # 'P2WPKHConfidentialAddress',
+    'P2WSHCoinConfidentialAddress',
+    'P2WPKHCoinConfidentialAddress',
     'CElementsAddress',
     'CElementsConfidentialAddress',
     'CBase58ElementsAddress',
     'CBase58ElementsConfidentialAddress',
-    # 'CBech32ElementsAddress',
-    # 'CBlech32ElementsConfidentialAddress',
+    'CBech32ElementsAddress',
+    'CBlech32ElementsConfidentialAddress',
     'P2SHElementsAddress',
     'P2PKHElementsAddress',
     'P2WSHElementsAddress',

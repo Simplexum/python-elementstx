@@ -30,6 +30,11 @@ class ElementsParams(BitcoinMainnetParams,
         return name_parts[1]
 
 
+class ElementsLiquidV1Params(BitcoinMainnetParams, name='elements/liquidv1'):
+    RPC_PORT = 7042
+    WALLET_DISPATCHER = elementstx.wallet.WalletElementsLiquidV1ClassDispatcher
+
+
 __all__ = (
     '__version__',
     'ElementsParams'
