@@ -42,6 +42,7 @@ class Test_ConfidentialAddress(unittest.TestCase):
         def T(confidential_addr, expected_bytes, unconfidential_addr,
               expected_blinding_pubkey, expected_class):
             a = CCoinAddress(confidential_addr)
+            self.assertIsInstance(a, expected_class)
             self.assertEqual(a.to_bytes(), expected_bytes)
             self.assertEqual(unconfidential_addr, a.to_unconfidential())
             self.assertEqual(
@@ -49,7 +50,6 @@ class Test_ConfidentialAddress(unittest.TestCase):
                 str(a.__class__.from_unconfidential(
                     unconfidential_addr, a.blinding_pubkey)))
             self.assertEqual(expected_blinding_pubkey, a.blinding_pubkey)
-            self.assertIsInstance(a, expected_class)
             a2 = CCoinConfidentialAddress(str(a))
             self.assertEqual(a, a2)
             a2 = CCoinConfidentialAddress.from_unconfidential(unconfidential_addr,

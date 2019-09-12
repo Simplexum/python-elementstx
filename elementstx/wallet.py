@@ -46,7 +46,7 @@ class CConfidentialAddressError(CCoinAddressError):
     """Raised when an invalid confidential address is encountered"""
 
 
-class CCoinConfidentialAddress(CCoinAddress, WalletElementsClass):
+class CCoinConfidentialAddress(CCoinAddress):
     @classmethod
     def from_unconfidential(cls, unconfidential_adr, blinding_pubkey):
         """Convert unconfidential address to confidential
@@ -122,7 +122,7 @@ class CBase58CoinConfidentialAddress(CCoinConfidentialAddress, CBase58CoinAddres
     ...
 
 
-# class CBlech32ConfidentialAddress(CCoinConfidentialAddress, WalletElementsClass):
+# class CBlech32ConfidentialAddress(CCoinConfidentialAddress):
 
 
 class P2SHCoinConfidentialAddress(CBase58CoinConfidentialAddress,
@@ -158,7 +158,7 @@ class CBase58ElementsAddress(CBase58CoinAddress, CElementsAddress):
 class CBase58ElementsConfidentialAddress(CBase58CoinConfidentialAddress,
                                          CElementsConfidentialAddress,
                                          CBase58ElementsAddress):
-    base58_prefix = bytes([4])
+    ...
 
 
 class CBech32ElementsAddress(CBech32CoinAddress, CElementsAddress):
