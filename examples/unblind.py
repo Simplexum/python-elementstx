@@ -77,8 +77,10 @@ if __name__ == '__main__':
                     if rpinfo:
                         print('  ct-exponent', rpinfo.exp)
                         print('  ct-bits', rpinfo.mantissa)
-                        print('  value-minimum', satoshi_to_coins(rpinfo.value_min))
-                        print('  value-maximum', satoshi_to_coins(rpinfo.value_max))
+                        print('  value-minimum',
+                              satoshi_to_coins(rpinfo.value_min, check_range=False))
+                        print('  value-maximum',
+                              satoshi_to_coins(rpinfo.value_max, check_range=False))
             else:
                 # Successfully unblinded the output !
                 print("vout {}: unblinded".format(n))
