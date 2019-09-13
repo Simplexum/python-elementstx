@@ -105,8 +105,8 @@ def convertbits(data, frombits, tobits, pad=True):
 
 def decode(hrp, addr):
     """Decode a segwit confidential address.
-    It is longer than unconfidential address by 33 bytes
-    (the length of blinding pubkey)"""
+    Its payload is longer than the payload for unconfidential address
+    by 33 bytes (the length of blinding pubkey)"""
     hrpgot, data = blech32_decode(addr)
     if hrpgot != hrp:
         return (None, None)
