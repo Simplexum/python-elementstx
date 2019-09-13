@@ -77,6 +77,14 @@ class CCoinConfidentialAddress(CCoinAddress):
         if not blinding_pubkey.is_fullyvalid():
             raise CConfidentialAddressError('invalid blinding pubkey')
 
+        # without #noqa linter gives warning that we should use isinstance.
+        # but here we want exact match, isinstance is not applicable
+        if type(cls) is not type(unconfidential_adr.__class__): #noqa
+            raise CConfidentialAddressError(
+                'cannot create {} from {}: these address classes belong '
+                'to different chains'
+                .format(cls.__name__, unconfidential_adr.__class__.__name__))
+
         clsmap = {
             P2PKHCoinAddress: P2PKHCoinConfidentialAddress,
             P2WPKHCoinAddress: P2WPKHCoinConfidentialAddress,
@@ -84,13 +92,23 @@ class CCoinConfidentialAddress(CCoinAddress):
             P2WSHCoinAddress: P2WSHCoinConfidentialAddress,
         }
         for unconf_cls, conf_cls in clsmap.items():
-            if isinstance(unconfidential_adr, unconf_cls):
+            mapped_cls_list = dispatcher_mapped_list(conf_cls)
+            if mapped_cls_list:
+                assert len(mapped_cls_list) == 1,\
+                    "{} must be final dispatch class".format(conf_cls.__name__)
+                chain_specific_conf_cls = mapped_cls_list[0]
+            else:
+                chain_specific_conf_cls = conf_cls
+            if isinstance(unconfidential_adr, unconf_cls) and\
+                    (issubclass(cls, (conf_cls, chain_specific_conf_cls))
+                     or issubclass(chain_specific_conf_cls, cls)):
                 return conf_cls.from_bytes(blinding_pubkey + unconfidential_adr)
-            if isinstance(cls, conf_cls):
+            if issubclass(cls, (conf_cls, chain_specific_conf_cls)):
                 raise CConfidentialAddressError(
-                    'cannot create {} from {}: only {} is accepted'
-                    .format(cls, unconfidential_adr.__class__.__name__,
-                            unconf_cls))
+                    'cannot create {} from {}: only subclasses of {} are accepted'
+                    .format(cls.__name__,
+                            unconfidential_adr.__class__.__name__,
+                            unconf_cls.__name__))
 
         raise CConfidentialAddressError(
             'cannot create {} from {}: no matching confidential address class'
@@ -260,10 +278,16 @@ class P2PKHElementsConfidentialAddress(CBase58ElementsConfidentialAddress,
     _unconfidential_address_class = P2PKHElementsAddress
 
 
+P2PKHElementsAddress.register(P2PKHElementsConfidentialAddress)
+
+
 class P2SHElementsConfidentialAddress(CBase58ElementsConfidentialAddress,
                                       P2SHCoinConfidentialAddress):
     base58_prefix = bytes([4, 75])
     _unconfidential_address_class = P2SHElementsAddress
+
+
+P2SHElementsAddress.register(P2SHElementsConfidentialAddress)
 
 
 class P2WPKHElementsConfidentialAddress(CBlech32ElementsConfidentialAddress,
@@ -271,9 +295,15 @@ class P2WPKHElementsConfidentialAddress(CBlech32ElementsConfidentialAddress,
     _unconfidential_address_class = P2WPKHElementsAddress
 
 
+P2WPKHElementsAddress.register(P2WPKHElementsConfidentialAddress)
+
+
 class P2WSHElementsConfidentialAddress(CBlech32ElementsConfidentialAddress,
                                        P2WSHCoinConfidentialAddress):
     _unconfidential_address_class = P2WSHElementsAddress
+
+
+P2WSHElementsAddress.register(P2WSHElementsConfidentialAddress)
 
 
 class CElementsKey(CCoinKey, WalletElementsClass):
