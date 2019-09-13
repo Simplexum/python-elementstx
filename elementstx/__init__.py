@@ -30,12 +30,16 @@ class ElementsParams(BitcoinMainnetParams,
         return name_parts[1]
 
 
-class ElementsLiquidV1Params(BitcoinMainnetParams, name='elements/liquidv1'):
+class ElementsLiquidV1Params(ElementsParams, name='elements/liquidv1'):
     RPC_PORT = 7042
     WALLET_DISPATCHER = elementstx.wallet.WalletElementsLiquidV1ClassDispatcher
+
+    def get_datadir_extra_name(self):
+        return self.NAME.split('/')[1]
 
 
 __all__ = (
     '__version__',
-    'ElementsParams'
+    'ElementsParams',
+    'ElementsLiquidV1Params'
 )
