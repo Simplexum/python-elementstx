@@ -184,7 +184,9 @@ class CAsset(Uint256):
         result_commitment = ctypes.create_string_buffer(CConfidentialAsset._committedSize)
         ret = _secp256k1.secp256k1_generator_serialize(
             secp256k1_blind_context, result_commitment, gen)
-        assert ret == 1
+        if 1 != ret:
+            assert(ret == 0)
+            raise RuntimeError('secp256k1_generator_serialize returned failure')
         return result_commitment.raw
 
 
@@ -863,7 +865,9 @@ def blind_transaction(tx, *, input_descriptors=(), output_pubkeys=(), # noqa
                 secp256k1_blind_context, asset_generator,
                 input_descriptors[i].asset.data,
                 input_descriptors[i].asset_blinding_factor.data)
-            assert ret == 1
+            if 1 != ret:
+                assert(ret == 0)
+                raise RuntimeError('secp256k1_generator_generate_blinded returned failure')
 
         targetAssetGenerators[totalTargets] = asset_generator.raw
         surjectionTargets[totalTargets] = input_descriptors[i].asset
@@ -897,7 +901,9 @@ def blind_transaction(tx, *, input_descriptors=(), output_pubkeys=(), # noqa
                 ret = _secp256k1.secp256k1_generator_generate(
                     secp256k1_blind_context,
                     targetAssetGenerators[totalTargets], asset.data)
-                assert ret == 1
+                if 1 != ret:
+                    assert(ret == 0)
+                    raise RuntimeError('secp256k1_generator_generate returned failure')
                 # Issuance asset cannot be blinded by definition
                 targetAssetBlinders.append(Uint256())
                 totalTargets += 1
@@ -909,7 +915,9 @@ def blind_transaction(tx, *, input_descriptors=(), output_pubkeys=(), # noqa
                 ret = _secp256k1.secp256k1_generator_generate(
                     secp256k1_blind_context,
                     targetAssetGenerators[totalTargets], token.data)
-                assert ret == 1
+                if 1 != ret:
+                    assert(ret == 0)
+                    raise RuntimeError('secp256k1_generator_generate returned failure')
                 # Issuance asset cannot be blinded by definition
                 targetAssetBlinders.append(Uint256())
                 totalTargets += 1
@@ -1176,7 +1184,9 @@ def blind_transaction(tx, *, input_descriptors=(), output_pubkeys=(), # noqa
                     blindedAmounts, assetblindptrs, blindptrs,
                     nBlindAttempts + nBlindsIn, nIssuanceBlindAttempts + nBlindsIn)
 
-                assert ret == 1
+                if 1 != ret:
+                    assert(ret == 0)
+                    raise RuntimeError('secp256k1_pedersen_blind_generator_blind_sum returned failure')
 
                 assert(_immutable_check_hash == hashlib.sha256(b''.join(b.data
                                                                         for b in blinds)).digest()),\
@@ -1278,11 +1288,15 @@ def blinded_asset(asset, assetblind):
     gen = ctypes.create_string_buffer(SECP256K1_GENERATOR_SIZE)
     ret = _secp256k1.secp256k1_generator_generate_blinded(
         secp256k1_blind_context, gen, asset.data, assetblind.data)
-    assert ret == 1
+    if 1 != ret:
+        assert(ret == 0)
+        raise RuntimeError('secp256k1_generator_generate_blinded returned failure')
     result_commitment = ctypes.create_string_buffer(CConfidentialAsset._committedSize)
     ret = _secp256k1.secp256k1_generator_serialize(
         secp256k1_blind_context, result_commitment, gen)
-    assert ret == 1
+    if 1 != ret:
+        assert(ret == 0)
+        raise RuntimeError('secp256k1_generator_serialize returned failure')
 
     confAsset = CConfidentialAsset(bytes(result_commitment))
     assert confAsset.is_valid()
@@ -1294,11 +1308,15 @@ def create_value_commitment(blind, gen, amount):
     commit = ctypes.create_string_buffer(SECP256K1_PEDERSEN_COMMITMENT_SIZE)
     ret = _secp256k1.secp256k1_pedersen_commit(
         secp256k1_blind_context, commit, blind, amount, gen)
-    assert ret == 1
+    if 1 != ret:
+        assert(ret == 0)
+        raise RuntimeError('secp256k1_pedersen_commit returned failure')
     result_commitment = ctypes.create_string_buffer(CConfidentialAsset._committedSize)
     ret = _secp256k1.secp256k1_pedersen_commitment_serialize(
         secp256k1_blind_context, result_commitment, commit)
-    assert ret == 1
+    if 1 != ret:
+        assert(ret == 0)
+        raise RuntimeError('secp256k1_pedersen_commitment_serialize returned failure')
 
     confValue = CConfidentialValue(bytes(result_commitment))
     assert confValue.is_valid()
@@ -1347,7 +1365,7 @@ def generate_rangeproof(in_blinds, nonce, amount, scriptPubKey, commit, gen, ass
 
     # Sign rangeproof
     # If min_value is 0, scriptPubKey must be unspendable
-    res = _secp256k1.secp256k1_rangeproof_sign(
+    ret = _secp256k1.secp256k1_rangeproof_sign(
         secp256k1_blind_context,
         rangeproof, ctypes.byref(nRangeProofLen),
         0 if scriptPubKey.is_unspendable() else 1,
@@ -1357,7 +1375,9 @@ def generate_rangeproof(in_blinds, nonce, amount, scriptPubKey, commit, gen, ass
         len(scriptPubKey),
         gen)
 
-    assert res == 1
+    if 1 != ret:
+        assert(ret == 0)
+        raise RuntimeError('secp256k1_rangeproof_sign returned failure')
 
     return rangeproof[:nRangeProofLen.value]
 
@@ -1408,13 +1428,17 @@ def generate_surjectionproof(surjectionTargets, targetAssetGenerators,
             ephemeral_input_tags_buf, len(targetAssetGenerators),
             gen, input_index, targetAssetBlinders[input_index.value].data, assetblinds[-1].data)
 
-        assert ret == 1
+        if 1 != ret:
+            assert(ret == 0)
+            raise RuntimeError('secp256k1_surjectionproof_generate returned failure')
 
         ret = _secp256k1.secp256k1_surjectionproof_verify(
             secp256k1_blind_context, proof,
             ephemeral_input_tags_buf, len(targetAssetGenerators), gen)
 
-        assert ret == 1
+        if 1 != ret:
+            assert(ret == 0)
+            raise RuntimeError('secp256k1_surjectionproof_verify returned failure')
 
         expected_output_len = _secp256k1.secp256k1_surjectionproof_serialized_size(
             secp256k1_blind_context, proof)
@@ -1544,11 +1568,15 @@ def unblind_confidential_pair(key, confValue, confAsset, nNonce,  # noqa
     derived_generator = ctypes.create_string_buffer(33)
     res = _secp256k1.secp256k1_generator_serialize(
         secp256k1_blind_context, observed_generator, observed_gen)
-    assert res == 1
+    if 1 != res:
+        assert(res == 0)
+        raise RuntimeError('secp256k1_generator_serialize returned failure')
 
     res = _secp256k1.secp256k1_generator_serialize(
         secp256k1_blind_context, derived_generator, recalculated_gen)
-    assert res == 1
+    if 1 != res:
+        assert(res == 0)
+        raise RuntimeError('secp256k1_generator_serialize returned failure')
 
     if observed_generator.raw != derived_generator.raw:
         return UnblindingFailure(
