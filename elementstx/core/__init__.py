@@ -48,7 +48,7 @@ from bitcointx.core import (
     CMutableTxInWitness, CMutableTxOutWitness,
 )
 
-from bitcointx.util import no_bool_use_as_property
+from bitcointx.util import no_bool_use_as_property, ensure_isinstance
 from bitcointx.core.script import CScriptWitness
 from bitcointx.core.sha256 import CSHA256
 from bitcointx.core.serialize import (
@@ -196,7 +196,11 @@ class CConfidentialAsset(CConfidentialCommitmentBase):
     _prefixB = 11
 
     def __init__(self, asset_or_commitment=b''):
-        assert(isinstance(asset_or_commitment, (CAsset, bytes, bytearray)))
+        if not isinstance(asset_or_commitment, (CAsset, bytes, bytearray)):
+            raise TypeError(
+                f'asset_or_commitment must be an instance of any of '
+                '(CAsset, bytes, bytearray), but an instance of '
+                '{asset_or_commitment.__class__.__name__} was supplied')
         if isinstance(asset_or_commitment, CAsset):
             commitment = bytes([1]) + asset_or_commitment.data
         else:
@@ -205,11 +209,15 @@ class CConfidentialAsset(CConfidentialCommitmentBase):
 
     @classmethod
     def from_asset(cls, asset):
-        assert isinstance(asset, CAsset)
+        if not isinstance(asset, CAsset):
+            raise TypeError(
+                f'assrt must be an instance of CAsset, but an instance of '
+                '{asset.__class__.__name__} was supplied')
         return cls(asset)
 
     def to_asset(self):
-        assert self.is_explicit()
+        if not self.is_explicit():
+            raise TypeError('asset is confidential, cannot convert to CAsset')
         return CAsset(self.commitment[1:])
 
     def _get_explicit(self):
@@ -222,7 +230,12 @@ class CConfidentialValue(CConfidentialCommitmentBase):
     _prefixB = 9
 
     def __init__(self, value_or_commitment=b''):
-        assert isinstance(value_or_commitment, (int, bytes, bytearray))
+        if not isinstance(value_or_commitment, (int, bytes, bytearray)):
+            raise TypeError(
+                f'value_or_commitment must be an instance of any of '
+                '(int, bytes, bytearray), but an instance of '
+                '{value_or_commitment.__class__.__name__} was supplied')
+
         if isinstance(value_or_commitment, int):
             commitment = bytes([1]) + struct.pack(b">q", value_or_commitment)
         else:
@@ -231,11 +244,15 @@ class CConfidentialValue(CConfidentialCommitmentBase):
 
     @classmethod
     def from_amount(cls, amount):
-        assert isinstance(amount, int)
+        if not isinstance(amount, int):
+            raise TypeError(
+                f'amount expected to be an instance of int, '
+                'but an instance of {amount.__class__.__name__} was supplied')
         return cls(amount)
 
     def to_amount(self):
-        assert self.is_explicit()
+        if not self.is_explicit():
+            raise TypeError('value is confidential, cannot convert to CAsset')
         return struct.unpack(b">q", self.commitment[1:])[0]
 
     def _get_explicit(self):
@@ -276,8 +293,10 @@ class CElementsTxInWitness(ReprOrStrMixin, CTxInWitness, CoreElementsClass):
     def __init__(self, scriptWitness=CScriptWitness(),
                  issuanceAmountRangeproof=b'', inflationKeysRangeproof=b'',
                  pegin_witness=CScriptWitness()):
-        assert isinstance(issuanceAmountRangeproof, (bytes, bytearray))
-        assert isinstance(inflationKeysRangeproof, (bytes, bytearray))
+        ensure_isinstance(issuanceAmountRangeproof, (bytes, bytearray),
+                          'issuanceAmountRangeproof')
+        ensure_isinstance(inflationKeysRangeproof, (bytes, bytearray),
+                          'inflationKeysRangeproof')
         object.__setattr__(self, 'scriptWitness', scriptWitness)
         object.__setattr__(self, 'issuanceAmountRangeproof',
                            CElementsScript(issuanceAmountRangeproof))

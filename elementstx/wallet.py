@@ -94,8 +94,9 @@ class CCoinConfidentialAddress(CCoinAddress):
         for unconf_cls, conf_cls in clsmap.items():
             mapped_cls_list = dispatcher_mapped_list(conf_cls)
             if mapped_cls_list:
-                assert len(mapped_cls_list) == 1,\
-                    "{} must be final dispatch class".format(conf_cls.__name__)
+                if len(mapped_cls_list) != 1:
+                    raise TypeError(
+                        f"{conf_cls.__name__} must be final dispatch class")
                 chain_specific_conf_cls = mapped_cls_list[0]
             else:
                 chain_specific_conf_cls = conf_cls
@@ -168,9 +169,9 @@ class CBlech32CoinConfidentialAddress(elementstx.blech32.CBlech32Data,
     @classmethod
     def from_bytes(cls, witprog, witver=None):
         if cls._witness_version is None:
-            assert witver is not None, \
-                ("witver must be specified for {}.from_bytes()"
-                 .format(cls.__name__))
+            if witver is None:
+                raise ValueError(
+                    f"witver must be specified for {cls.__name__}.from_bytes()")
             for candidate in dispatcher_mapped_list(cls):
                 if len(witprog) == candidate._data_length and \
                         witver == candidate._witness_version:
