@@ -24,12 +24,21 @@ class Blech32ChecksumError(Blech32Error):
     pass
 
 
+class UnexpectedBlech32LenghOrVersion(Blech32Error):
+    """Raised by bech32_match_progam_and_version()
+    when unexpected prefix encountered
+
+    """
+
+
 class CBlech32Data(bytes):
     """Blech32-encoded data
 
     Includes a witver and checksum.
     """
     blech32_hrp = None
+    blech32_witness_version: int = -1
+    _data_length: int
 
     def __new__(cls, s):
         """from blech32 addr to """
@@ -37,10 +46,11 @@ class CBlech32Data(bytes):
             raise TypeError(
                 'CBlech32Data subclasses should define blech32_hrp attribute')
         witver, data = decode(cls.blech32_hrp, s)
-        if witver is None and data is None:
+        if witver is None or data is None:
+            assert witver is None and data is None
             raise Blech32Error('Blech32 decoding error')
 
-        return cls.from_bytes(data, witver=witver)
+        return cls.blech32_match_progam_and_version(data, witver)
 
     def __init__(self, s):
         """Initialize from blech32-encoded string
@@ -51,13 +61,67 @@ class CBlech32Data(bytes):
         """
 
     @classmethod
-    def from_bytes(cls, witprog, witver=None):
+    def blech32_get_match_candidates(cls):
+        if cls.blech32_witness_version >= 0:
+            return [cls]
+        return []
+
+    @classmethod
+    def blech32_match_progam_and_version(cls, data: bytes, witver: int):
+        """Instantiate from data and witver.
+        if witver is not set for class, this is equivalent of from_bytes()"""
+        candidates = cls.blech32_get_match_candidates()
+        if not candidates:
+            return cls.from_bytes(data, witver=witver)
+
+        for candidate in candidates:
+            wv = candidate.blech32_witness_version
+            if wv < 0:
+                try:
+                    return candidate.blech32_match_progam_and_version(
+                        data, witver)
+                except UnexpectedBlech32LenghOrVersion:
+                    pass
+            elif len(data) == candidate._data_length and witver == wv:
+                return candidate.from_bytes(data, witver=witver)
+
+        if len(candidates) == 1:
+            raise UnexpectedBlech32LenghOrVersion(
+                f'Incorrect length/version for {cls.__name__}: '
+                f'{len(data)}/{witver}, expected '
+                f'{cls._data_length}/{cls.blech32_witness_version}')
+
+        raise UnexpectedBlech32LenghOrVersion(
+            'witness program or version does not match any known Blech32 '
+            'address class')
+
+    @classmethod
+    def from_bytes(cls, witprog: bytes, witver: int = None):
         """Instantiate from witver and data"""
-        if witver is None or not (0 <= witver <= 16):
+        cls_wv = cls.blech32_witness_version
+        if witver is None:
+            if cls_wv < 0:
+                raise ValueError(
+                    f'witver must be specified, {cls.__name__} does not '
+                    f'specify blech32_witness_version')
+            witver = cls_wv
+        elif witver < 0:
+            raise ValueError('negative witver specified')
+        elif cls_wv >= 0 and witver != cls_wv:
+            raise ValueError(
+                f'witver specified but is not the same as '
+                f'{cls.__name__}.blech32_witness_version')
+
+        if not (0 <= witver <= 16):
             raise ValueError(
                 'witver must be in range 0 to 16 inclusive; got %r' % witver)
-        self = bytes.__new__(cls, witprog)
-        self.witver = witver
+
+        # mypy cannot handle arguments to `bytes.__new__()` at the moment,
+        # issue: https://github.com/python/typeshed/issues/2630
+        self = bytes.__new__(cls, witprog)  # type: ignore
+        if cls_wv < 0:
+            self.blech32_witness_version = witver
+        self.__init__(None)
 
         return self
 
@@ -69,9 +133,14 @@ class CBlech32Data(bytes):
         """
         return b'' + self
 
-    def __str__(self):
+    def __str__(self) -> str:
         """Convert to string"""
-        return encode(self.__class__.blech32_hrp, self.witver, self)
+        result = encode(self.blech32_hrp, self.blech32_witness_version, self)
+        if result is None:
+            raise AssertionError(
+                'encode should not fail, this is data that '
+                'was successfully decoded earlier')
+        return result
 
     def __repr__(self):
         return '%s(%r)' % (self.__class__.__name__, str(self))

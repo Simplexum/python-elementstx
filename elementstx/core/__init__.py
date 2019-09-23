@@ -24,6 +24,7 @@ import hmac
 import struct
 import ctypes
 import hashlib
+from typing import Union, List, Optional, Type, TypeVar
 from collections import namedtuple
 
 from elementstx.core.secp256k1 import (
@@ -49,7 +50,7 @@ from bitcointx.core import (
 )
 
 from bitcointx.util import no_bool_use_as_property, ensure_isinstance
-from bitcointx.core.script import CScriptWitness
+from bitcointx.core.script import CScriptWitness, CScript
 from bitcointx.core.sha256 import CSHA256
 from bitcointx.core.serialize import (
     ImmutableSerializable, SerializationError,
@@ -101,6 +102,7 @@ class CConfidentialCommitmentBase(ImmutableSerializable):
     __slots__ = ['commitment']
 
     def __init__(self, commitment=b''):
+        ensure_isinstance(commitment, (bytes, bytearray), 'commitment')
         allowed_sizes = (0, self._explicitSize, self._committedSize)
         if len(commitment) not in allowed_sizes:
             raise ValueError(
@@ -136,21 +138,21 @@ class CConfidentialCommitmentBase(ImmutableSerializable):
             f.write(bytes([0]))
 
     @no_bool_use_as_property
-    def is_null(self):
+    def is_null(self) -> bool:
         return not len(self.commitment)
 
     @no_bool_use_as_property
-    def is_explicit(self):
+    def is_explicit(self) -> bool:
         return (len(self.commitment) == self._explicitSize
                 and self.commitment[0] == 1)
 
     @no_bool_use_as_property
-    def is_commitment(self):
+    def is_commitment(self) -> bool:
         return (len(self.commitment) == self._committedSize
                 and self.commitment[0] in (self._prefixA, self._prefixB))
 
     @no_bool_use_as_property
-    def is_valid(self):
+    def is_valid(self) -> bool:
         return self.is_null() or self.is_explicit() or self.is_commitment()
 
     def _get_explicit(self):
@@ -175,7 +177,7 @@ class CAsset(Uint256):
     def __repr__(self):
         return "{}('{}')".format(self.__class__.__name__, self.to_hex())
 
-    def to_commitment(self):
+    def to_commitment(self) -> bytes:
         gen = ctypes.create_string_buffer(64)
         res = _secp256k1.secp256k1_generator_generate(
             secp256k1_blind_context, gen, self.data)
@@ -196,11 +198,8 @@ class CConfidentialAsset(CConfidentialCommitmentBase):
     _prefixB = 11
 
     def __init__(self, asset_or_commitment=b''):
-        if not isinstance(asset_or_commitment, (CAsset, bytes, bytearray)):
-            raise TypeError(
-                f'asset_or_commitment must be an instance of any of '
-                '(CAsset, bytes, bytearray), but an instance of '
-                '{asset_or_commitment.__class__.__name__} was supplied')
+        ensure_isinstance(asset_or_commitment, (CAsset, bytes, bytearray),
+                          'asset_or_commitment')
         if isinstance(asset_or_commitment, CAsset):
             commitment = bytes([1]) + asset_or_commitment.data
         else:
@@ -208,14 +207,11 @@ class CConfidentialAsset(CConfidentialCommitmentBase):
         super(CConfidentialAsset, self).__init__(commitment)
 
     @classmethod
-    def from_asset(cls, asset):
-        if not isinstance(asset, CAsset):
-            raise TypeError(
-                f'assrt must be an instance of CAsset, but an instance of '
-                '{asset.__class__.__name__} was supplied')
+    def from_asset(cls, asset) -> 'CConfidentialAsset':
+        ensure_isinstance(asset, CAsset, 'asset')
         return cls(asset)
 
-    def to_asset(self):
+    def to_asset(self) -> CAsset:
         if not self.is_explicit():
             raise TypeError('asset is confidential, cannot convert to CAsset')
         return CAsset(self.commitment[1:])
@@ -230,12 +226,8 @@ class CConfidentialValue(CConfidentialCommitmentBase):
     _prefixB = 9
 
     def __init__(self, value_or_commitment=b''):
-        if not isinstance(value_or_commitment, (int, bytes, bytearray)):
-            raise TypeError(
-                f'value_or_commitment must be an instance of any of '
-                '(int, bytes, bytearray), but an instance of '
-                '{value_or_commitment.__class__.__name__} was supplied')
-
+        ensure_isinstance(value_or_commitment, (int, bytes, bytearray),
+                          'value_or_commitment')
         if isinstance(value_or_commitment, int):
             commitment = bytes([1]) + struct.pack(b">q", value_or_commitment)
         else:
@@ -243,14 +235,11 @@ class CConfidentialValue(CConfidentialCommitmentBase):
         super(CConfidentialValue, self).__init__(commitment)
 
     @classmethod
-    def from_amount(cls, amount):
-        if not isinstance(amount, int):
-            raise TypeError(
-                f'amount expected to be an instance of int, '
-                'but an instance of {amount.__class__.__name__} was supplied')
+    def from_amount(cls, amount) -> 'CConfidentialValue':
+        ensure_isinstance(amount, int, 'amount')
         return cls(amount)
 
-    def to_amount(self):
+    def to_amount(self) -> int:
         if not self.is_explicit():
             raise TypeError('value is confidential, cannot convert to CAsset')
         return struct.unpack(b">q", self.commitment[1:])[0]
@@ -283,6 +272,10 @@ class CElementsMutableOutPoint(CElementsOutPoint, CMutableOutPoint,
     __slots__ = []
 
 
+T_CElementsTxInWitness = TypeVar('T_CElementsTxInWitness',
+                                 bound='CElementsTxInWitness')
+
+
 class CElementsTxInWitness(ReprOrStrMixin, CTxInWitness, CoreElementsClass):
     """Witness data for a single transaction input of elements transaction"""
     __slots__ = ['scriptWitness',
@@ -290,13 +283,17 @@ class CElementsTxInWitness(ReprOrStrMixin, CTxInWitness, CoreElementsClass):
 
     # put scriptWitness first for CTxInWitness(script_witness) to work
     # the same as with CBitcoinTxInWitness.
-    def __init__(self, scriptWitness=CScriptWitness(),
-                 issuanceAmountRangeproof=b'', inflationKeysRangeproof=b'',
-                 pegin_witness=CScriptWitness()):
+    def __init__(self, scriptWitness: CScriptWitness = CScriptWitness(),
+                 issuanceAmountRangeproof: Union[bytes, bytearray] = b'',
+                 inflationKeysRangeproof: Union[bytes, bytearray] = b'',
+                 pegin_witness: CScriptWitness = CScriptWitness()):
         ensure_isinstance(issuanceAmountRangeproof, (bytes, bytearray),
                           'issuanceAmountRangeproof')
         ensure_isinstance(inflationKeysRangeproof, (bytes, bytearray),
                           'inflationKeysRangeproof')
+        ensure_isinstance(scriptWitness, CScriptWitness, 'scriptWitness')
+        ensure_isinstance(pegin_witness, CScriptWitness, 'pegin_witness')
+
         object.__setattr__(self, 'scriptWitness', scriptWitness)
         object.__setattr__(self, 'issuanceAmountRangeproof',
                            CElementsScript(issuanceAmountRangeproof))
@@ -307,7 +304,7 @@ class CElementsTxInWitness(ReprOrStrMixin, CTxInWitness, CoreElementsClass):
         object.__setattr__(self, 'pegin_witness', pegin_witness)
 
     @no_bool_use_as_property
-    def is_null(self):
+    def is_null(self) -> bool:
         return (not len(self.issuanceAmountRangeproof)
                 and not len(self.inflationKeysRangeproof)
                 and self.scriptWitness.is_null()
@@ -329,14 +326,20 @@ class CElementsTxInWitness(ReprOrStrMixin, CTxInWitness, CoreElementsClass):
         self.pegin_witness.stream_serialize(f)
 
     @classmethod
-    def clone_from_instance(cls, txin_witness):
-        return cls(scriptWitness=txin_witness.scriptWitness,
-                   issuanceAmountRangeproof=txin_witness.issuanceAmountRangeproof,
-                   inflationKeysRangeproof=txin_witness.inflationKeysRangeproof,
-                   pegin_witness=txin_witness.pegin_witness)
+    def from_instance(cls: Type[T_CElementsTxInWitness],
+                      txin_witness: 'CElementsTxInWitness'
+                      ) -> T_CElementsTxInWitness:
+        return cls._from_instance(
+            txin_witness,
+            scriptWitness=txin_witness.scriptWitness,
+            issuanceAmountRangeproof=txin_witness.issuanceAmountRangeproof,
+            inflationKeysRangeproof=txin_witness.inflationKeysRangeproof,
+            pegin_witness=txin_witness.pegin_witness)
 
     @classmethod
-    def from_txin_witness(cls, txin_witness):
+    def from_txin_witness(cls: Type[T_CElementsTxInWitness],
+                          txin_witness: 'CElementsTxInWitness'
+                          ) -> T_CElementsTxInWitness:
         return cls.from_instance(txin_witness)
 
     def _repr_or_str(self, strfn):
@@ -353,18 +356,23 @@ class CElementsMutableTxInWitness(CElementsTxInWitness, CMutableTxInWitness,
     __slots__ = []
 
 
+T_CElementsTxOutWitness = TypeVar('T_CElementsTxOutWitness',
+                                  bound='CElementsTxOutWitness')
+
+
 class CElementsTxOutWitness(CTxOutWitness, CoreElementsClass):
     """Witness data for a single transaction output of elements transaction"""
     __slots__ = ['surjectionproof', 'rangeproof']
 
-    def __init__(self, surjectionproof=b'', rangeproof=b''):
-        assert isinstance(surjectionproof, (bytes, bytearray))
-        assert isinstance(rangeproof, (bytes, bytearray))
+    def __init__(self, surjectionproof: Union[bytes, bytearray] = b'',
+                 rangeproof: Union[bytes, bytearray] = b''):
+        ensure_isinstance(surjectionproof, (bytes, bytearray), 'surjectionproof')
+        ensure_isinstance(rangeproof, (bytes, bytearray), 'rangeproof')
         object.__setattr__(self, 'surjectionproof', surjectionproof)
         object.__setattr__(self, 'rangeproof', rangeproof)
 
     @no_bool_use_as_property
-    def is_null(self):
+    def is_null(self) -> bool:
         return not len(self.surjectionproof) and not len(self.rangeproof)
 
     @classmethod
@@ -377,7 +385,7 @@ class CElementsTxOutWitness(CTxOutWitness, CoreElementsClass):
         BytesSerializer.stream_serialize(self.surjectionproof, f)
         BytesSerializer.stream_serialize(self.rangeproof, f)
 
-    def get_rangeproof_info(self):
+    def get_rangeproof_info(self) -> 'ZKPRangeproofInfo':
         if not secp256k1_has_zkp:
             raise RuntimeError('secp256k1-zkp library is not available. '
                                ' get_rangeproof_info is not functional.')
@@ -400,12 +408,17 @@ class CElementsTxOutWitness(CTxOutWitness, CoreElementsClass):
                                  value_min=value_min.value, value_max=value_max.value)
 
     @classmethod
-    def clone_from_instance(cls, txout_witness):
-        return cls(surjectionproof=txout_witness.surjectionproof,
-                   rangeproof=txout_witness.rangeproof)
+    def from_instance(cls: Type[T_CElementsTxOutWitness],
+                      txout_witness: 'CElementsTxOutWitness',
+                      ) -> T_CElementsTxOutWitness:
+        return cls._from_instance(txout_witness,
+                                  surjectionproof=txout_witness.surjectionproof,
+                                  rangeproof=txout_witness.rangeproof)
 
     @classmethod
-    def from_txout_witness(cls, txout_witness):
+    def from_txout_witness(cls: Type[T_CElementsTxOutWitness],
+                           txout_witness: 'CElementsTxOutWitness',
+                           ) -> T_CElementsTxOutWitness:
         return cls.from_instance(txout_witness)
 
     def __repr__(self):
@@ -422,11 +435,16 @@ class CElementsMutableTxOutWitness(CElementsTxOutWitness, CMutableTxOutWitness,
     __slots__ = []
 
 
+T_CElementsTxWitness = TypeVar('T_CElementsTxWitness',
+                               bound='CElementsTxWitness')
+
+
 class CElementsTxWitness(ReprOrStrMixin, CTxWitness, CoreElementsClass):
 
     __slots__ = ['vtxinwit', 'vtxoutwit']
 
-    def __init__(self, vtxinwit=(), vtxoutwit=()):
+    def __init__(self, vtxinwit: List[CElementsTxInWitness] = (),
+                 vtxoutwit: List[CElementsTxOutWitness] = ()):
         txinwit = []
         for w in vtxinwit:
             txinwit.append(CTxInWitness.from_txin_witness(w))
@@ -444,7 +462,7 @@ class CElementsTxWitness(ReprOrStrMixin, CTxWitness, CoreElementsClass):
         object.__setattr__(self, 'vtxoutwit', txoutwit)
 
     @no_bool_use_as_property
-    def is_null(self):
+    def is_null(self) -> bool:
         for n in range(len(self.vtxinwit)):
             if not self.vtxinwit[n].is_null():
                 return False
@@ -471,11 +489,15 @@ class CElementsTxWitness(ReprOrStrMixin, CTxWitness, CoreElementsClass):
             self.vtxoutwit[i].stream_serialize(f)
 
     @classmethod
-    def clone_from_instance(cls, witness):
-        return cls(witness.vtxinwit, witness.vtxoutwit)
+    def from_instance(cls: Type[T_CElementsTxWitness],
+                      witness: 'CElementsTxWitness'
+                      ) -> T_CElementsTxWitness:
+        return cls._from_instance(witness, witness.vtxinwit, witness.vtxoutwit)
 
     @classmethod
-    def from_witness(cls, witness):
+    def from_witness(cls: Type[T_CElementsTxWitness],
+                     witness: 'CElementsTxWitness'
+                     ) -> T_CElementsTxWitness:
         return cls.from_instance(witness)
 
     def _repr_or_str(self, strfn):
@@ -493,15 +515,22 @@ class CElementsMutableTxWitness(CElementsTxWitness, CMutableTxWitness,
 class CAssetIssuance(ImmutableSerializable, ReprOrStrMixin):
     __slots__ = ['assetBlindingNonce', 'assetEntropy', 'nAmount', 'nInflationKeys']
 
-    def __init__(self, assetBlindingNonce=Uint256(), assetEntropy=Uint256(),
-                 nAmount=CConfidentialValue(), nInflationKeys=CConfidentialValue()):
+    def __init__(self, assetBlindingNonce: Optional[Uint256] = Uint256(),
+                 assetEntropy: Optional[Uint256] = Uint256(),
+                 nAmount: Optional[CConfidentialValue] = CConfidentialValue(),
+                 nInflationKeys: Optional[CConfidentialValue] = CConfidentialValue()):
+
+        ensure_isinstance(assetBlindingNonce, Uint256, 'assetBlindingNonce')
+        ensure_isinstance(assetEntropy, Uint256, 'assetEntropy')
+        ensure_isinstance(nAmount, CConfidentialValue, 'nAmount')
+        ensure_isinstance(nInflationKeys, CConfidentialValue, 'nInflationKeys')
         object.__setattr__(self, 'assetBlindingNonce', assetBlindingNonce)
         object.__setattr__(self, 'assetEntropy', assetEntropy)
         object.__setattr__(self, 'nAmount', nAmount)
         object.__setattr__(self, 'nInflationKeys', nInflationKeys)
 
     @no_bool_use_as_property
-    def is_null(self):
+    def is_null(self) -> bool:
         return self.nAmount.is_null() and self.nInflationKeys.is_null()
 
     @classmethod
@@ -531,15 +560,20 @@ class CAssetIssuance(ImmutableSerializable, ReprOrStrMixin):
         return 'CAssetIssuance({})'.format(', '.join(r))
 
 
+T_CElementsTxIn = TypeVar('T_CElementsTxIn', bound='CElementsTxIn')
+
+
 class CElementsTxIn(ReprOrStrMixin, CTxIn, CoreElementsClass):
     """Immutable Elements CTxIn"""
     __slots__ = ['prevout', 'scriptSig', 'nSequence', 'assetIssuance', 'is_pegin']
 
-    def __init__(self, prevout=None, scriptSig=CElementsScript(), nSequence=0xffffffff,
-                 assetIssuance=CAssetIssuance(), is_pegin=False):
-        if not isinstance(scriptSig, CElementsScript):
-            assert isinstance(scriptSig, (bytes, bytearray))
-            scriptSig = CElementsScript(scriptSig)
+    def __init__(self, prevout: Optional[COutPoint] = None,
+                 scriptSig: Optional[CElementsScript] = CElementsScript(),
+                 nSequence: int = 0xffffffff,
+                 assetIssuance: Optional[CAssetIssuance] = CAssetIssuance(),
+                 is_pegin: bool = False):
+        ensure_isinstance(assetIssuance, CAssetIssuance, 'assetIssuance')
+        ensure_isinstance(is_pegin, bool, 'is_pegin')
         super(CElementsTxIn, self).__init__(prevout, scriptSig, nSequence)
         object.__setattr__(self, 'assetIssuance', assetIssuance)
         object.__setattr__(self, 'is_pegin', is_pegin)
@@ -605,19 +639,23 @@ class CElementsTxIn(ReprOrStrMixin, CTxIn, CoreElementsClass):
             self.is_pegin)
 
     @classmethod
-    def clone_from_instance(cls, txin):
-        return cls(
+    def from_instance(cls: Type[T_CElementsTxIn], txin: 'CElementsTxIn'):
+        return cls._from_instance(
+            txin,
             COutPoint.from_outpoint(txin.prevout),
             txin.scriptSig, txin.nSequence, txin.assetIssuance, txin.is_pegin)
 
     @classmethod
-    def from_txin(cls, txin):
+    def from_txin(cls: Type[T_CElementsTxIn], txin: 'CElementsTxIn'):
         return cls.from_instance(txin)
 
 
 class CElementsMutableTxIn(CElementsTxIn, CMutableTxIn, mutable_of=CElementsTxIn):
     """A mutable Elements CTxIn"""
     __slots__ = []
+
+
+T_CElementsTxOut = TypeVar('T_CElementsTxOut', bound='CElementsTxOut')
 
 
 class CElementsTxOut(ReprOrStrMixin, CTxOut, CoreElementsClass):
@@ -627,18 +665,23 @@ class CElementsTxOut(ReprOrStrMixin, CTxOut, CoreElementsClass):
 
     # nValue and scriptPubKey is first to be compatible with
     # CTxOut(nValue, scriptPubKey) calls
-    def __init__(self, nValue=CConfidentialValue(), scriptPubKey=CElementsScript(),
-                 nAsset=CConfidentialAsset(), nNonce=CConfidentialNonce()):
-        assert isinstance(nValue, CConfidentialValue)
-        assert isinstance(nAsset, CConfidentialAsset)
-        assert isinstance(nNonce, CConfidentialNonce)
-        if not isinstance(scriptPubKey, CElementsScript):
-            assert isinstance(scriptPubKey, (bytes, bytearray))
-            scriptPubKey = CElementsScript(scriptPubKey)
+    def __init__(self, nValue: Optional[CConfidentialValue] = CConfidentialValue(),
+                 scriptPubKey: Optional[CElementsScript] = CElementsScript(),
+                 nAsset: Optional[CConfidentialAsset] = CConfidentialAsset(),
+                 nNonce: Optional[CConfidentialNonce] = CConfidentialNonce()):
+
+        ensure_isinstance(nValue, CConfidentialValue, 'nValue')
+        ensure_isinstance(nAsset, CConfidentialAsset, 'nAsset')
+        ensure_isinstance(nNonce, CConfidentialNonce, 'nNonce')
+
+        # will set scriptPubKey (with conversion as necessary),
+        # and will set nValue to -1, that we will overwrite immediately
+        # with correct nValue of type CConfidentialValue
+        super(CElementsTxOut, self).__init__(-1, scriptPubKey)
+
         object.__setattr__(self, 'nAsset', nAsset)
         object.__setattr__(self, 'nValue', nValue)
         object.__setattr__(self, 'nNonce', nNonce)
-        object.__setattr__(self, 'scriptPubKey', scriptPubKey)
 
     @classmethod
     def stream_deserialize(cls, f):
@@ -655,12 +698,12 @@ class CElementsTxOut(ReprOrStrMixin, CTxOut, CoreElementsClass):
         BytesSerializer.stream_serialize(self.scriptPubKey, f)
 
     @no_bool_use_as_property
-    def is_null(self):
+    def is_null(self) -> bool:
         return (self.nAsset.is_null() and self.nValue.is_null()
                 and self.nNonce.is_null() and not len(self.scriptPubKey))
 
     @no_bool_use_as_property
-    def is_fee(self):
+    def is_fee(self) -> bool:
         return (not len(self.scriptPubKey)
                 and self.nValue.is_explicit()
                 and self.nAsset.is_explicit())
@@ -671,22 +714,28 @@ class CElementsTxOut(ReprOrStrMixin, CTxOut, CoreElementsClass):
             strfn(self.nValue), repr(self.scriptPubKey), strfn(self.nAsset),
             strfn(self.nNonce))
 
-    def unblind_confidential_pair(self, blinding_key=None, rangeproof=None):
+    def unblind_confidential_pair(
+        self, blinding_key: CKeyBase = None,
+        rangeproof: Union[bytes, bytearray] = None
+    ) -> 'BlindingOrUnblindingResult':
+
         """Unblinds a txout, given a key and a rangeproof.
         returns a tuple of (success, result)
         If success is True, result is BlindingInputDescriptor namedtuple.
         If success is False, result is a string describing the cause of failure"""
         return unblind_confidential_pair(
-            blinding_key, self.nValue, self.nAsset, self.nNonce,
-            self.scriptPubKey, rangeproof)
+            blinding_key=blinding_key,
+            confValue=self.nValue, confAsset=self.nAsset, confNonce=self.nNonce,
+            committedScript=self.scriptPubKey, rangeproof=rangeproof)
 
     @classmethod
-    def clone_from_instance(cls, txout):
-        return cls(txout.nValue, txout.scriptPubKey,
-                   txout.nAsset, txout.nNonce)
+    def from_instance(cls: Type[T_CElementsTxOut], txout: 'CElementsTxOut'):
+        return cls._from_instance(txout,
+                                  txout.nValue, txout.scriptPubKey,
+                                  txout.nAsset, txout.nNonce)
 
     @classmethod
-    def from_txout(cls, txout):
+    def from_txout(cls: Type[T_CElementsTxOut], txout: 'CElementsTxOut'):
         return cls.from_instance(txout)
 
 
@@ -754,7 +803,7 @@ class CElementsTransaction(CTransaction, CoreElementsClass):
             f.write(struct.pack(b"<I", self.nLockTime))
 
     @property
-    def num_issuances(self):
+    def num_issuances(self) -> int:
         numIssuances = 0
         for txin in self.vin:
             if not txin.assetIssuance.is_null():
@@ -771,20 +820,35 @@ class CElementsTransaction(CTransaction, CoreElementsClass):
 
 class CElementsMutableTransaction(CElementsTransaction, CMutableTransaction,
                                   mutable_of=CElementsTransaction):
-    def blind(self, *args, **kwargs):
-        if len(args):
-            raise TypeError('blind() does not accept positional parameters')
-        return blind_transaction(self, **kwargs)
+    def blind(self, *,
+              input_descriptors: List['BlindingInputDescriptor'] = (),
+              output_pubkeys: List[CPubKey] = (), # noqa
+              blind_issuance_asset_keys: List[CKeyBase] = (),
+              blind_issuance_token_keys: List[CKeyBase] = (),
+              auxiliary_generators: List[Union[bytes, bytearray]] = (),
+              _rand_func=os.urandom) -> 'BlindingOrUnblindingResult':
+
+        return blind_transaction(
+            self,
+            input_descriptors=input_descriptors,
+            output_pubkeys=output_pubkeys,
+            blind_issuance_asset_keys=blind_issuance_asset_keys,
+            blind_issuance_token_keys=blind_issuance_token_keys,
+            auxiliary_generators=auxiliary_generators,
+            _rand_func=_rand_func)
 
 
-def blind_transaction(tx, *, input_descriptors=(), output_pubkeys=(), # noqa
-                      blind_issuance_asset_keys=(), blind_issuance_token_keys=(),
-                      auxiliary_generators=(), _rand_func=os.urandom):
+def blind_transaction(tx, *,
+                      input_descriptors: List['BlindingInputDescriptor'] = (),
+                      output_pubkeys: List[CPubKey] = (), # noqa
+                      blind_issuance_asset_keys: List[CKeyBase] = (),
+                      blind_issuance_token_keys: List[CKeyBase] = (),
+                      auxiliary_generators: List[Union[bytes, bytearray]] = (),
+                      _rand_func=os.urandom):
 
     """Blinds the transaction. Return a BlindingOrUnblindingResult"""
 
-    if not isinstance(tx, CElementsTransaction):
-        raise ValueError('can blind only Elements transactions')
+    ensure_isinstance(tx, CElementsTransaction, 'transaction')
 
     if not tx.is_mutable():
         raise ValueError('only mutable transaction can be blinded')
@@ -792,18 +856,32 @@ def blind_transaction(tx, *, input_descriptors=(), output_pubkeys=(), # noqa
     # based on Elements Core's BlindTransaction() function from src/blind.cpp
     # as of commit 43f6cdbd3147d9af450b73c8b8b8936e3e4166df
 
-    assert len(tx.vout) >= len(output_pubkeys)
-    assert all(isinstance(p, CPubKey) for p in output_pubkeys)
-    assert len(tx.vin) + tx.num_issuances >= len(blind_issuance_asset_keys)
-    assert all(k is None or isinstance(k, CKey) for k in blind_issuance_asset_keys)
-    assert len(tx.vin) + tx.num_issuances >= len(blind_issuance_token_keys)
-    assert all(k is None or isinstance(k, CKey) for k in blind_issuance_token_keys)
-    assert len(tx.vin) == len(input_descriptors)
-    for idesc in input_descriptors:
-        assert isinstance(idesc.blinding_factor, Uint256)
-        assert isinstance(idesc.asset_blinding_factor, Uint256)
-        assert isinstance(idesc.asset, CAsset)
-        assert isinstance(idesc.amount, int)
+    if not (len(tx.vout) >= len(output_pubkeys)):
+        raise ValueError('unexpected extra output_pubkeys')
+    for i, p in enumerate(output_pubkeys):
+        ensure_isinstance(p, CPubKey, f'pubkey {i} in output_pubkeys')
+    if not (len(tx.vin) + tx.num_issuances >= len(blind_issuance_asset_keys)):
+        raise ValueError('unexpected extra blind_issuance_asset_keys')
+    for i, k in enumerate(blind_issuance_asset_keys):
+        if k:
+            ensure_isinstance(k, CKeyBase, f'key {i} in blind_issuance_asset_keys')
+    if not(len(tx.vin) + tx.num_issuances >= len(blind_issuance_token_keys)):
+        raise ValueError('unexpected extra blind_issuance_token_keys')
+    for i, k in enumerate(blind_issuance_token_keys):
+        if k:
+            ensure_isinstance(k, CKeyBase, f'key {i} in blind_issuance_token_keys')
+
+    if len(tx.vin) != len(input_descriptors):
+        raise ValueError('number of input descriptors is not equal number of inputs')
+
+    for i, idesc in enumerate(input_descriptors):
+        ensure_isinstance(idesc.blinding_factor, Uint256,
+                          f'blinding_factor of input descriptor {i}')
+        ensure_isinstance(idesc.asset_blinding_factor, Uint256,
+                          f'asset_blinding_factor of input descriptor {i}')
+        ensure_isinstance(idesc.asset, CAsset,
+                          f'asset of input descriptor {i}')
+        ensure_isinstance(idesc.amount, int, f'amount of input descriptor {i}')
 
     output_blinding_factors = [None for _ in range(len(tx.vout))]
     output_asset_blinding_factors = [None for _ in range(len(tx.vout))]
@@ -827,14 +905,20 @@ def blind_transaction(tx, *, input_descriptors=(), output_pubkeys=(), # noqa
     num_targets = len(tx.vin)*3
 
     if auxiliary_generators:
-        assert len(auxiliary_generators) >= len(tx.vin)
+        if not (len(auxiliary_generators) >= len(tx.vin)):
+            raise ValueError(
+                'auxiliary generators are supplied, but their count is less '
+                'than the number of inputs')
         # We might have allow to set None for unused assetcommitments,
         # but the Elements Core API requires all assetcommitments to be
         # specified ad 33-byte chunks.
         # We do the same, to be close to the originial.
-        assert all(isinstance(ag, (bytes, bytearray))
-                   for ag in auxiliary_generators)
-        assert all(len(ag) == 33 for ag in auxiliary_generators)
+        for i, ag in enumerate(auxiliary_generators):
+            ensure_isinstance(ag, (bytes, bytearray),
+                              f'auxiliary generator at position {i}')
+            if len(ag) != 33:
+                raise ValueError(
+                    f'auxiliary generator at position {i} has length != 33')
 
         # auxiliary_generators beyond the length of the input array
         # will also be used to fill surjectionTargets and targetAssetGenerators
@@ -1271,28 +1355,35 @@ def blind_transaction(tx, *, input_descriptors=(), output_pubkeys=(), # noqa
     return blinding_success(nSuccessfullyBlinded)
 
 
-def generate_asset_entropy(prevout, contracthash):
-    assert isinstance(prevout, COutPoint)
-    assert isinstance(contracthash, (bytes, bytearray, Uint256))
+def generate_asset_entropy(
+    prevout: COutPoint, contracthash: Union[bytes, bytearray, Uint256]
+) -> Uint256:
+    ensure_isinstance(prevout, COutPoint, 'prevout')
+    ensure_isinstance(contracthash, (bytes, bytearray, Uint256),
+                      'contracthash')
     if isinstance(contracthash, Uint256):
         contracthash = contracthash.data
     assert len(contracthash) == 32
     return Uint256(CSHA256().Write(prevout.GetHash()).Write(contracthash).Midstate())
 
 
-def calculate_asset(entropy):
-    assert isinstance(entropy, (bytes, bytearray, Uint256))
+def calculate_asset(entropy: Union[bytes, bytearray, Uint256]) -> CAsset:
+    ensure_isinstance(entropy, (bytes, bytearray, Uint256), 'entropy')
     if isinstance(entropy, Uint256):
         entropy = entropy.data
-    assert len(entropy) == 32
+    if len(entropy) != 32:
+        raise ValueError('entropy must be 32 bytes in length')
     return CAsset(CSHA256().Write(entropy).Write(Uint256().data).Midstate())
 
 
-def calculate_reissuance_token(entropy, is_confidential):
-    assert isinstance(entropy, (bytes, bytearray, Uint256))
+def calculate_reissuance_token(entropy: Union[bytes, bytearray, Uint256],
+                               is_confidential: bool) -> CAsset:
+    ensure_isinstance(entropy, (bytes, bytearray, Uint256), 'entropy')
+    ensure_isinstance(is_confidential, bool, 'is_confidential')
     if isinstance(entropy, Uint256):
         entropy = entropy.data
-    assert len(entropy) == 32
+    if len(entropy) != 32:
+        raise ValueError('entropy must be 32 bytes in length')
     if is_confidential:
         k = Uint256.from_int(2)
     else:
@@ -1300,9 +1391,9 @@ def calculate_reissuance_token(entropy, is_confidential):
     return CAsset(CSHA256().Write(entropy).Write(k.data).Midstate())
 
 
-def blinded_asset(asset, assetblind):
-    assert isinstance(asset, CAsset)
-    assert isinstance(assetblind, Uint256)
+def blinded_asset(asset: CAsset, assetblind: Uint256):
+    ensure_isinstance(asset, CAsset, 'asset')
+    ensure_isinstance(assetblind, Uint256, 'assetblind')
 
     gen = ctypes.create_string_buffer(SECP256K1_GENERATOR_SIZE)
     ret = _secp256k1.secp256k1_generator_generate_blinded(
@@ -1348,14 +1439,16 @@ def generate_rangeproof(in_blinds, nonce, amount, scriptPubKey, commit, gen, ass
     # available since python3.5. but that means we will have
     # to add a dependency for python 3.4.
     # when we drop python3.4 support, we might use typing.
-    assert isinstance(nonce, Uint256)
-    assert isinstance(amount, int)
-    assert isinstance(scriptPubKey, CElementsScript)
-    assert isinstance(commit, (bytes, bytearray))
-    assert len(commit) == SECP256K1_PEDERSEN_COMMITMENT_SIZE
-    assert isinstance(asset, CAsset)
-    assert isinstance(gen, (bytes, bytearray))
-    assert len(gen) == SECP256K1_GENERATOR_SIZE
+    ensure_isinstance(nonce, Uint256, 'nonce')
+    ensure_isinstance(amount, int, 'amount')
+    ensure_isinstance(scriptPubKey, CElementsScript, 'scriptPubKey')
+    ensure_isinstance(commit, (bytes, bytearray), 'commit')
+    if len(commit) != SECP256K1_PEDERSEN_COMMITMENT_SIZE:
+        raise ValueError('len(commit) != SECP256K1_PEDERSEN_COMMITMENT_SIZE')
+    ensure_isinstance(asset, CAsset, 'asset')
+    ensure_isinstance(gen, (bytes, bytearray), 'generator')
+    if len(gen) != SECP256K1_GENERATOR_SIZE:
+        raise ValueError('len(gen) != SECP256K1_GENERATOR_SIZE')
 
     # Note: the code only uses the single last elements of blinds and
     # assetblinds. We could require these elements to be passed explicitly,
@@ -1472,19 +1565,24 @@ def generate_surjectionproof(surjectionTargets, targetAssetGenerators,
     return serialized_proof.raw
 
 
-def unblind_confidential_pair(key, confValue, confAsset, nNonce,  # noqa
-                              committedScript, rangeproof):
+def unblind_confidential_pair(blinding_key: CKeyBase = None,  # noqa
+                              confValue: CConfidentialValue = None,
+                              confAsset: CConfidentialAsset = None,
+                              confNonce: CConfidentialNonce = None,
+                              committedScript: CElementsScript = None,
+                              rangeproof: Union[bytes, bytearray] = None
+                              ) -> 'BlindingOrUnblindingResult':
     """Unblinds a pair of confidential value and confidential asset
     given key, nonce, committed script, and rangeproof.
     returns a tuple of (success, result)
     If success is True, result is BlindingInputDescriptor namedtuple.
     If success is False, result is a string describing the cause of failure"""
-    assert isinstance(key, CKeyBase)
-    assert isinstance(confValue, CConfidentialValue)
-    assert isinstance(confAsset, CConfidentialAsset)
-    assert isinstance(nNonce, CConfidentialNonce)
-    assert isinstance(committedScript, CElementsScript)
-    assert isinstance(rangeproof, (bytes, bytearray))
+    ensure_isinstance(blinding_key, CKeyBase, 'blinding_key')
+    ensure_isinstance(confValue, CConfidentialValue, 'confValue')
+    ensure_isinstance(confAsset, CConfidentialAsset, 'confAsset')
+    ensure_isinstance(confNonce, CConfidentialNonce, 'nNonce')
+    ensure_isinstance(committedScript, CElementsScript, 'committedScript')
+    ensure_isinstance(rangeproof, (bytes, bytearray), 'rangeproof')
 
     # NOTE: we do not allow creation of invalid CKey instances,
     # so no key.is_valid() check needed
@@ -1492,17 +1590,17 @@ def unblind_confidential_pair(key, confValue, confAsset, nNonce,  # noqa
     if len(rangeproof) == 0:
         return UnblindingFailure('rangeproof is empty')
 
-    ephemeral_key = CPubKey(nNonce.commitment)
+    ephemeral_key = CPubKey(confNonce.commitment)
 
     # ECDH or not depending on if nonce commitment is non-empty
-    if len(nNonce.commitment) > 0:
+    if len(confNonce.commitment) > 0:
         if not ephemeral_key.is_fullyvalid():
             return UnblindingFailure('nNonce.commitment is not a valid pubkey')
-        nonce = hashlib.sha256(key.ECDH(ephemeral_key)).digest()
+        nonce = hashlib.sha256(blinding_key.ECDH(ephemeral_key)).digest()
     else:
         # Use blinding key directly, and don't commit to a scriptpubkey
         committedScript = CElementsScript()
-        nonce = key.secret_bytes
+        nonce = blinding_key.secret_bytes
 
     # 32 bytes of asset type, 32 bytes of asset blinding factor in sidechannel
     msg_size = ctypes.c_size_t(64)
@@ -1607,8 +1705,16 @@ def unblind_confidential_pair(key, confValue, confAsset, nNonce,  # noqa
         asset=CAsset(asset_type[:32]), asset_blinding_factor=Uint256(msg[32:64]))
 
 
-def derive_blinding_key(blinding_derivation_key, script):
-    assert isinstance(blinding_derivation_key, CKeyBase)
+def derive_blinding_key(blinding_derivation_key: CKeyBase,
+                        script: Union[CElementsScript, bytes, bytearray]
+                        ) -> CKey:
+    ensure_isinstance(blinding_derivation_key, CKeyBase, 'blinding_derivation_key')
+    if isinstance(script, CScript) and not isinstance(script, CElementsScript):
+        raise TypeError(
+            f'script is expected to be CElementsScript, but is {script.__class__.__name__}')
+    else:
+        ensure_isinstance(script, (bytes, bytearray),
+                          'script that is not an instance of CScript')
     # based on Elements Core's blinding key derivation logic
     # as of commit 43f6cdbd3147d9af450b73c8b8b8936e3e4166df
     return CKey(hmac.new(blinding_derivation_key.secret_bytes, script,

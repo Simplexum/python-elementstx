@@ -22,7 +22,7 @@ class ElementsParams(BitcoinMainnetParams,
     RPC_PORT = 7041
     WALLET_DISPATCHER = elementstx.wallet.WalletElementsClassDispatcher
 
-    def get_datadir_extra_name(self):
+    def get_datadir_extra_name(self) -> str:
         name_parts = self.NAME.split('/')
         if len(name_parts) == 1:
             # Data dir for Elements is 'elementsregtest'
@@ -34,7 +34,7 @@ class ElementsLiquidV1Params(ElementsParams, name='elements/liquidv1'):
     RPC_PORT = 7042
     WALLET_DISPATCHER = elementstx.wallet.WalletElementsLiquidV1ClassDispatcher
 
-    def get_datadir_extra_name(self):
+    def get_datadir_extra_name(self) -> str:
         return self.NAME.split('/')[1]
 
 

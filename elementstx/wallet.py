@@ -12,10 +12,12 @@
 # pylama:ignore=E501
 
 from io import BytesIO
+from typing import Union, TypeVar, Type
 
 from bitcointx.core.key import (
     CPubKey
 )
+from bitcointx.core.script import CScript
 from bitcointx.wallet import (
     WalletCoinClassDispatcher, WalletCoinClass,
     CCoinAddress, P2SHCoinAddress, P2WSHCoinAddress,
@@ -24,7 +26,7 @@ from bitcointx.wallet import (
     CCoinAddressError,
     CCoinKey, CCoinExtKey, CCoinExtPubKey
 )
-from bitcointx.util import dispatcher_mapped_list
+from bitcointx.util import dispatcher_mapped_list, ensure_isinstance
 from .core import (
     CoreElementsClassDispatcher, CElementsTxOut,
     CConfidentialCommitmentBase, CConfidentialValue, CConfidentialAsset,
@@ -57,9 +59,16 @@ class CConfidentialAddressError(CCoinAddressError):
     """Raised when an invalid confidential address is encountered"""
 
 
+T_CCoinConfidentialAddress = TypeVar('T_CCoinConfidentialAddress',
+                                     bound='CCoinConfidentialAddress')
+
+
 class CCoinConfidentialAddress(CCoinAddress):
     @classmethod
-    def from_unconfidential(cls, unconfidential_adr, blinding_pubkey):
+    def from_unconfidential(
+        cls: Type[T_CCoinConfidentialAddress], unconfidential_adr: CCoinAddress,
+        blinding_pubkey: Union[CPubKey, bytes, bytearray]
+    ) -> T_CCoinConfidentialAddress:
         """Convert unconfidential address to confidential
 
         Raises CConfidentialAddressError if blinding_pubkey is invalid
@@ -68,21 +77,19 @@ class CCoinConfidentialAddress(CCoinAddress):
         unconfidential_adr can be string or CBase58CoinAddress
         instance. blinding_pubkey must be a bytes instance
         """
-        if not isinstance(blinding_pubkey, (bytes, bytearray)):
-            raise TypeError(
-                'blinding_pubkey must be bytes or bytearray instance; got %r'
-                % blinding_pubkey.__class__)
+        ensure_isinstance(blinding_pubkey, (CPubKey, bytes, bytearray),
+                          'blinding_pubkey')
         if not isinstance(blinding_pubkey, CPubKey):
             blinding_pubkey = CPubKey(blinding_pubkey)
         if not blinding_pubkey.is_fullyvalid():
-            raise CConfidentialAddressError('invalid blinding pubkey')
+            raise ValueError('invalid blinding pubkey')
 
         # without #noqa linter gives warning that we should use isinstance.
         # but here we want exact match, isinstance is not applicable
         if type(cls) is not type(unconfidential_adr.__class__): #noqa
-            raise CConfidentialAddressError(
-                'cannot create {} from {}: these address classes belong '
-                'to different chains'
+            raise TypeError(
+                'cannot create {} from {}: this address class might belong '
+                'to different chain'
                 .format(cls.__name__, unconfidential_adr.__class__.__name__))
 
         clsmap = {
@@ -105,7 +112,7 @@ class CCoinConfidentialAddress(CCoinAddress):
                      or issubclass(chain_specific_conf_cls, cls)):
                 return conf_cls.from_bytes(blinding_pubkey + unconfidential_adr)
             if issubclass(cls, (conf_cls, chain_specific_conf_cls)):
-                raise CConfidentialAddressError(
+                raise TypeError(
                     'cannot create {} from {}: only subclasses of {} are accepted'
                     .format(cls.__name__,
                             unconfidential_adr.__class__.__name__,
@@ -115,26 +122,36 @@ class CCoinConfidentialAddress(CCoinAddress):
             'cannot create {} from {}: no matching confidential address class'
             .format(cls.__name__, unconfidential_adr.__class__.__name__))
 
-    def to_unconfidential(self):
+    def to_unconfidential(self) -> CCoinAddress:
         return self._unconfidential_address_class.from_bytes(self[33:])
 
     @property
-    def blinding_pubkey(self):
+    def blinding_pubkey(self) -> CPubKey:
         return CPubKey(self[0:33])
 
-    def to_scriptPubKey(self):
+    def to_scriptPubKey(self) -> CScript:
         return self.to_unconfidential().to_scriptPubKey()
 
-    def to_redeemScript(self):
+    def to_redeemScript(self) -> CScript:
         return self.to_unconfidential().to_scriptPubKey()
 
     def from_scriptPubKey(self):
         raise CCoinAddressError(
             'cannot create confidential address from scriptPubKey')
 
-    def get_output_size(self):
+    @classmethod
+    def get_output_size(cls_or_inst) -> int:
+        if isinstance(cls_or_inst, type):
+            cls = cls_or_inst
+            data_length = getattr(cls, '_data_length', None)
+            if not data_length:
+                raise TypeError('output size is not available for {}'
+                                .format(cls.__name__))
+            inst = cls.from_bytes(b'\x00'*data_length)
+        else:
+            inst = cls_or_inst
         dummy_commitment = b'\x00'*CConfidentialCommitmentBase._committedSize
-        txo = CElementsTxOut(scriptPubKey=self.to_scriptPubKey(),
+        txo = CElementsTxOut(scriptPubKey=inst.to_scriptPubKey(),
                              nValue=CConfidentialValue(dummy_commitment),
                              nAsset=CConfidentialAsset(dummy_commitment),
                              nNonce=CConfidentialNonce(dummy_commitment))
@@ -159,71 +176,73 @@ class P2WPKHCoinConfidentialAddressError(CBlech32AddressError):
     """Raised when an invalid P2PKH confidential address is encountered"""
 
 
-class CBlech32CoinConfidentialAddress(elementstx.blech32.CBlech32Data,
+class CBlech32DataDispatched(elementstx.blech32.CBlech32Data):
+
+    def __init__(self, _s):
+        if self.__class__.blech32_witness_version < 0:
+            raise TypeError(
+                f'{self.__class__.__name__} must not be instantiated directly')
+        if len(self) != self.__class__._data_length:
+            raise TypeError(
+                f'lengh of the data is not {self.__class__._data_length}')
+
+    @classmethod
+    def blech32_get_match_candidates(cls):
+        candidates = dispatcher_mapped_list(cls)
+        if not candidates:
+            if cls.blech32_witness_version < 0:
+                raise TypeError(
+                    "if class has no dispatched descendants, it must have "
+                    "blech32_witness_version set to non-negative value")
+            candidates = [cls]
+        return candidates
+
+
+class CBlech32CoinConfidentialAddress(CBlech32DataDispatched,
                                       CCoinConfidentialAddress):
     """A Blech32-encoded coin confidential address"""
 
     _data_length = None
-    _witness_version = None
-
-    @classmethod
-    def from_bytes(cls, witprog, witver=None):
-        if cls._witness_version is None:
-            if witver is None:
-                raise ValueError(
-                    f"witver must be specified for {cls.__name__}.from_bytes()")
-            for candidate in dispatcher_mapped_list(cls):
-                if len(witprog) == candidate._data_length and \
-                        witver == candidate._witness_version:
-                    break
-            else:
-                raise CBlech32AddressError(
-                    'witness program does not match any known Blech32 '
-                    'address length or version')
-        else:
-            candidate = cls
-
-        if len(witprog) != candidate._data_length or \
-                (witver is not None and witver != candidate._witness_version):
-            raise CBlech32AddressError(
-                'witness program does not match {}'
-                ' expected length or version'.format(cls.__name__))
-
-        self = super(CBlech32CoinConfidentialAddress, cls).from_bytes(
-            bytes(witprog), witver=candidate._witness_version
-        )
-        self.__class__ = candidate
-
-        return self
+    blech32_witness_version = None
 
 
 class P2SHCoinConfidentialAddress(CBase58CoinConfidentialAddress,
                                   next_dispatch_final=True):
-    ...
+    _data_length = 20 + 33
 
 
 class P2PKHCoinConfidentialAddress(CBase58CoinConfidentialAddress,
                                    next_dispatch_final=True):
-    ...
+    _data_length = 20 + 33
 
 
 class P2WSHCoinConfidentialAddress(CBlech32CoinConfidentialAddress,
                                    next_dispatch_final=True):
     _data_length = 32 + 33
-    _witness_version = 0
+    blech32_witness_version = 0
     _scriptpubkey_type = 'witness_v0_scripthash'
 
 
 class P2WPKHCoinConfidentialAddress(CBlech32CoinConfidentialAddress,
                                     next_dispatch_final=True):
     _data_length = 20 + 33
-    _witness_version = 0
+    blech32_witness_version = 0
     _scriptpubkey_type = 'witness_v0_keyhash'
 
 
 class CElementsAddressBase(CCoinAddress):
-    def get_output_size(self):
-        txo = CElementsTxOut(scriptPubKey=self.to_scriptPubKey(),
+    @classmethod
+    def get_output_size(cls_or_inst) -> int:
+        if isinstance(cls_or_inst, type):
+            cls = cls_or_inst
+            data_length = getattr(cls, '_data_length', None)
+            if not data_length:
+                raise TypeError('output size is not available for {}'
+                                .format(cls.__name__))
+            inst = cls.from_bytes(b'\x00'*data_length)
+        else:
+            inst = cls_or_inst
+        txo = CElementsTxOut(scriptPubKey=inst.to_scriptPubKey(),
                              nValue=CConfidentialValue(0))
         f = BytesIO()
         txo.stream_serialize(f)
@@ -275,6 +294,7 @@ class P2WPKHElementsAddress(P2WPKHCoinAddress, CBech32ElementsAddress):
 
 class P2PKHElementsConfidentialAddress(CBase58ElementsConfidentialAddress,
                                        P2PKHCoinConfidentialAddress):
+
     base58_prefix = bytes([4, 235])
     _unconfidential_address_class = P2PKHElementsAddress
 

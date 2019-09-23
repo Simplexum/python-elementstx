@@ -140,7 +140,7 @@ class Test_ElementsAddress(unittest.TestCase):
                     for ct in conf_types:
                         unconf = getattr(smpl, uct)
                         conf = getattr(smpl, ct)
-                        with self.assertRaises(CConfidentialAddressError):
+                        with self.assertRaises(TypeError):
                             next_chain_specific_cls.from_unconfidential(unconf, pub2)
 
                         if ct.endswith(uct):
@@ -194,9 +194,9 @@ class Test_ElementsAddress(unittest.TestCase):
                             for ct2 in conf_types:
                                 if ct != ct2:
                                     conf_cls = getattr(smpl, ct2).__class__
-                                    with self.assertRaises(CConfidentialAddressError):
+                                    with self.assertRaises(TypeError):
                                         conf_cls.from_unconfidential(unconf, pub2)
                         else:
                             self.assertNotEqual(str(conf.to_unconfidential()), str(unconf))
-                            with self.assertRaises(CConfidentialAddressError):
+                            with self.assertRaises(TypeError):
                                 conf.from_unconfidential(unconf, pub2)

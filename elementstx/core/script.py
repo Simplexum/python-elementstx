@@ -13,9 +13,11 @@
 
 import struct
 from io import BytesIO
+from typing import Optional, Tuple
 
-from bitcointx.util import no_bool_use_as_property
+from bitcointx.util import no_bool_use_as_property, ensure_isinstance
 from bitcointx.core import Hash
+from bitcointx.core.key import CKey
 from bitcointx.core.script import (
     ScriptCoinClassDispatcher, ScriptCoinClass,
     CScript, CScriptOp,
@@ -60,15 +62,15 @@ def RawElementsSignatureHash(script, txTo, inIdx, hashtype, amount=0,
     If you're just writing wallet software you probably want SignatureHash()
     instead.
     """
-    assert sigversion in (SIGVERSION_BASE, SIGVERSION_WITNESS_V0)
+    if sigversion not in (SIGVERSION_BASE, SIGVERSION_WITNESS_V0):
+        raise ValueError('unexpected sigversion')
 
     if sigversion == SIGVERSION_BASE:
         # revert to standard bitcoin signature hash
         return RawBitcoinSignatureHash(script, txTo, inIdx, hashtype,
                                        amount=amount, sigversion=sigversion)
 
-    assert isinstance(amount, elementstx.core.CConfidentialValue),\
-        "amount must actually be a confidential commitment"
+    ensure_isinstance(amount, elementstx.core.CConfidentialValue, 'amount')
 
     hashPrevouts = b'\x00'*32
     hashSequence = b'\x00'*32
@@ -126,12 +128,12 @@ def RawElementsSignatureHash(script, txTo, inIdx, hashtype, amount=0,
 
 class CElementsScript(CScript, ScriptElementsClass):
 
-    def derive_blinding_key(self, blinding_derivation_key):
+    def derive_blinding_key(self, blinding_derivation_key) -> CKey:
         return elementstx.core.derive_blinding_key(
             blinding_derivation_key, self)
 
     @no_bool_use_as_property
-    def is_unspendable(self):
+    def is_unspendable(self) -> bool:
         if len(self) == 0:
             return True
         return super(CElementsScript, self).is_unspendable()
@@ -146,7 +148,7 @@ class CElementsScript(CScript, ScriptElementsClass):
         return RawElementsSignatureHash(self, txTo, inIdx, hashtype,
                                         amount=amount, sigversion=sigversion)
 
-    def get_pegout_data(self):
+    def get_pegout_data(self) -> Optional[Tuple[bytes, CScript]]:
         try:
             op_iter = self.raw_iter()
             op, _, _ = next(op_iter)
@@ -177,7 +179,7 @@ class CElementsScript(CScript, ScriptElementsClass):
         return (genesis_hash, pegout_scriptpubkey)
 
     @no_bool_use_as_property
-    def is_pegout(self):
+    def is_pegout(self) -> bool:
         return self.get_pegout_data() is not None
 
 
