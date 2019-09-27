@@ -24,7 +24,7 @@ import hmac
 import struct
 import ctypes
 import hashlib
-from typing import Union, List, Optional, Type, TypeVar
+from typing import Union, List, Optional, Type, TypeVar, cast
 from collections import namedtuple
 
 from elementstx.core.secp256k1 import (
@@ -816,6 +816,12 @@ class CElementsTransaction(CTransaction, CoreElementsClass):
 
     def blind(self, *args, **kwargs):
         raise TypeError('cannot blind immutable transction')
+
+    def to_mutable(self) -> 'CElementsMutableTransaction':
+        return cast('CElementsMutableTransaction', super().to_mutable())
+
+    def to_immutable(self) -> 'CElementsTransaction':
+        return cast('CElementsTransaction', super().to_immutable())
 
 
 class CElementsMutableTransaction(CElementsTransaction, CMutableTransaction,
