@@ -40,7 +40,7 @@ from bitcointx.core.key import (
 from bitcointx.core import (
     CoreCoinClassDispatcher, CoreCoinClass, CoreCoinParams,
     Uint256, MoneyRange,
-    bytes_for_repr, ReprOrStrMixin, b2x,
+    bytes_repr, ReprOrStrMixin, b2x,
     COutPoint, CMutableOutPoint,
 
     CTransaction, CTxIn, CTxOut, CTxWitness, CTxInWitness, CTxOutWitness,
@@ -169,7 +169,7 @@ class CConfidentialCommitmentBase(ImmutableSerializable):
         if self.is_explicit():
             v = repr(self._get_explicit())
         else:
-            v = bytes_for_repr(self.commitment)
+            v = bytes_repr(self.commitment)
         return "{}({})".format(self.__class__.__name__, v)
 
 
@@ -347,8 +347,8 @@ class CElementsTxInWitness(ReprOrStrMixin, CTxInWitness, CoreElementsClass):
             return "{}()".format(self.__class__.__name__)
         return "{}({}, {}, {}, {})".format(
             self.__class__.__name__,
-            strfn(self.scriptWitness), bytes_for_repr(self.issuanceAmountRangeproof),
-            bytes_for_repr(self.inflationKeysRangeproof), strfn(self.pegin_witness))
+            strfn(self.scriptWitness), bytes_repr(self.issuanceAmountRangeproof),
+            bytes_repr(self.inflationKeysRangeproof), strfn(self.pegin_witness))
 
 
 class CElementsMutableTxInWitness(CElementsTxInWitness, CMutableTxInWitness,
@@ -426,8 +426,8 @@ class CElementsTxOutWitness(CTxOutWitness, CoreElementsClass):
             return "{}()".format(self.__class__.__name__)
         return "{}({}, {})".format(
             self.__class__.__name__,
-            bytes_for_repr(self.surjectionproof),
-            bytes_for_repr(self.rangeproof))
+            bytes_repr(self.surjectionproof),
+            bytes_repr(self.rangeproof))
 
 
 class CElementsMutableTxOutWitness(CElementsTxOutWitness, CMutableTxOutWitness,
@@ -550,9 +550,9 @@ class CAssetIssuance(ImmutableSerializable, ReprOrStrMixin):
     def _repr_or_str(self, strfn):
         r = []
         if self.assetBlindingNonce.to_int():
-            r.append(bytes_for_repr(self.assetBlindingNonce.data))
+            r.append(bytes_repr(self.assetBlindingNonce.data))
         if self.assetEntropy.to_int():
-            r.append(bytes_for_repr(self.assetEntropy.data))
+            r.append(bytes_repr(self.assetEntropy.data))
         if not self.nAmount.is_null():
             r.append(strfn(self.nAmount))
         if not self.nInflationKeys.is_null():
