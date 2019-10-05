@@ -451,7 +451,8 @@ class Test_Elements_CTransaction(ElementsTestSetupBase, unittest.TestCase):
                     blinding_key = uvout.scriptPubKey.derive_blinding_key(blinding_derivation_key)
 
                 unblind_result = bvout.unblind_confidential_pair(
-                    blinding_key, blinded_tx.wit.vtxoutwit[n].rangeproof)
+                    blinding_key=blinding_key,
+                    rangeproof=blinded_tx.wit.vtxoutwit[n].rangeproof)
 
                 self.assertFalse(unblind_result.error)
                 self.assertEqual(uvout.nValue.to_amount(), unblind_result.amount)

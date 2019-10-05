@@ -39,7 +39,9 @@ from elementstx.wallet import (
 unconf_types = ('p2pkh', 'p2sh', 'p2wpkh', 'p2wsh')
 conf_types = ('conf_p2pkh', 'conf_p2sh', 'conf_p2wpkh', 'conf_p2wsh')
 
-AddressSamples = namedtuple('AddressSamples', unconf_types+conf_types)
+# NOTE: mypy cannot do dynamic fields of named tuples
+AddressSamples = namedtuple('AddressSamples',  # type: ignore
+                            list(unconf_types+conf_types))
 
 
 def get_params_list():

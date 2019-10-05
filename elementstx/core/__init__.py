@@ -24,7 +24,9 @@ import hmac
 import struct
 import ctypes
 import hashlib
-from typing import Union, List, Optional, Type, TypeVar, cast
+from typing import (
+    Union, List, Tuple, Iterable, Sequence, Optional, Type, TypeVar, cast
+)
 from collections import namedtuple
 
 from elementstx.core.secp256k1 import (
@@ -49,7 +51,10 @@ from bitcointx.core import (
     CMutableTxInWitness, CMutableTxOutWitness,
 )
 
-from bitcointx.util import no_bool_use_as_property, ensure_isinstance
+from bitcointx.util import (
+    no_bool_use_as_property, ensure_isinstance,
+    ReadOnlyField, WriteableField
+)
 from bitcointx.core.script import CScriptWitness, CScript
 from bitcointx.core.sha256 import CSHA256
 from bitcointx.core.serialize import (
@@ -93,13 +98,16 @@ class TxInSerializationError(SerializationError):
 
 
 class CConfidentialCommitmentBase(ImmutableSerializable):
-    _explicitSize = None
-    _prefixA = None
-    _prefixB = None
 
-    _committedSize = 33
+    __slots__: List[str] = ['commitment']
 
-    __slots__ = ['commitment']
+    _explicitSize: int
+    _prefixA: int
+    _prefixB: int
+
+    _committedSize: int = 33
+
+    commitment: bytes
 
     def __init__(self, commitment=b''):
         ensure_isinstance(commitment, (bytes, bytearray), 'commitment')
@@ -263,13 +271,13 @@ class CConfidentialNonce(CConfidentialCommitmentBase):
 
 class CElementsOutPoint(COutPoint, CoreElementsClass):
     """Elements COutPoint"""
-    __slots__ = []
+    __slots__: List[str] = []
 
 
 class CElementsMutableOutPoint(CElementsOutPoint, CMutableOutPoint,
                                mutable_of=CElementsOutPoint):
     """A mutable Elements COutPoint"""
-    __slots__ = []
+    __slots__: List[str] = []
 
 
 T_CElementsTxInWitness = TypeVar('T_CElementsTxInWitness',
@@ -278,8 +286,13 @@ T_CElementsTxInWitness = TypeVar('T_CElementsTxInWitness',
 
 class CElementsTxInWitness(ReprOrStrMixin, CTxInWitness, CoreElementsClass):
     """Witness data for a single transaction input of elements transaction"""
-    __slots__ = ['scriptWitness',
-                 'issuanceAmountRangeproof', 'inflationKeysRangeproof', 'pegin_witness']
+    __slots__: List[str] = ['scriptWitness', 'issuanceAmountRangeproof',
+                            'inflationKeysRangeproof', 'pegin_witness']
+
+    scriptWitness: ReadOnlyField[CScriptWitness]
+    issuanceAmountRangeproof: ReadOnlyField[CElementsScript]
+    inflationKeysRangeproof: ReadOnlyField[CElementsScript]
+    pegin_witness: ReadOnlyField[CScriptWitness]
 
     # put scriptWitness first for CTxInWitness(script_witness) to work
     # the same as with CBitcoinTxInWitness.
@@ -325,8 +338,12 @@ class CElementsTxInWitness(ReprOrStrMixin, CTxInWitness, CoreElementsClass):
         self.scriptWitness.stream_serialize(f)
         self.pegin_witness.stream_serialize(f)
 
+    # We cannot use generic bound type for txin_witness, because then
+    # the method at mutable class will accept only mutable instances.
+    # But without that, mypy complains that argument is incompatible
+    # with supertype. This is why we use type: ignore here.
     @classmethod
-    def from_instance(cls: Type[T_CElementsTxInWitness],
+    def from_instance(cls: Type[T_CElementsTxInWitness],  # type: ignore
                       txin_witness: 'CElementsTxInWitness'
                       ) -> T_CElementsTxInWitness:
         return cls._from_instance(
@@ -336,8 +353,12 @@ class CElementsTxInWitness(ReprOrStrMixin, CTxInWitness, CoreElementsClass):
             inflationKeysRangeproof=txin_witness.inflationKeysRangeproof,
             pegin_witness=txin_witness.pegin_witness)
 
+    # We cannot use generic bound type for txin_witness, because then
+    # the method at mutable class will accept only mutable instances.
+    # But without that, mypy complains that argument is incompatible
+    # with supertype. This is why we use type: ignore here.
     @classmethod
-    def from_txin_witness(cls: Type[T_CElementsTxInWitness],
+    def from_txin_witness(cls: Type[T_CElementsTxInWitness],  # type: ignore
                           txin_witness: 'CElementsTxInWitness'
                           ) -> T_CElementsTxInWitness:
         return cls.from_instance(txin_witness)
@@ -351,9 +372,15 @@ class CElementsTxInWitness(ReprOrStrMixin, CTxInWitness, CoreElementsClass):
             bytes_repr(self.inflationKeysRangeproof), strfn(self.pegin_witness))
 
 
-class CElementsMutableTxInWitness(CElementsTxInWitness, CMutableTxInWitness,
+class CElementsMutableTxInWitness(CElementsTxInWitness,  # type: ignore
+                                  CMutableTxInWitness,
                                   mutable_of=CElementsTxInWitness):
-    __slots__ = []
+    __slots__: List[str] = []
+
+    scriptWitness: WriteableField[CScriptWitness]  # type: ignore
+    issuanceAmountRangeproof: WriteableField[CElementsScript]
+    inflationKeysRangeproof: WriteableField[CElementsScript]
+    pegin_witness: WriteableField[CScriptWitness]
 
 
 T_CElementsTxOutWitness = TypeVar('T_CElementsTxOutWitness',
@@ -362,7 +389,10 @@ T_CElementsTxOutWitness = TypeVar('T_CElementsTxOutWitness',
 
 class CElementsTxOutWitness(CTxOutWitness, CoreElementsClass):
     """Witness data for a single transaction output of elements transaction"""
-    __slots__ = ['surjectionproof', 'rangeproof']
+    __slots__: List[str] = ['surjectionproof', 'rangeproof']
+
+    surjectionproof: ReadOnlyField[bytes]
+    rangeproof: ReadOnlyField[bytes]
 
     def __init__(self, surjectionproof: Union[bytes, bytearray] = b'',
                  rangeproof: Union[bytes, bytearray] = b''):
@@ -385,7 +415,7 @@ class CElementsTxOutWitness(CTxOutWitness, CoreElementsClass):
         BytesSerializer.stream_serialize(self.surjectionproof, f)
         BytesSerializer.stream_serialize(self.rangeproof, f)
 
-    def get_rangeproof_info(self) -> 'ZKPRangeproofInfo':
+    def get_rangeproof_info(self) -> Optional['ZKPRangeproofInfo']:
         if not secp256k1_has_zkp:
             raise RuntimeError('secp256k1-zkp library is not available. '
                                ' get_rangeproof_info is not functional.')
@@ -432,7 +462,10 @@ class CElementsTxOutWitness(CTxOutWitness, CoreElementsClass):
 
 class CElementsMutableTxOutWitness(CElementsTxOutWitness, CMutableTxOutWitness,
                                    mutable_of=CElementsTxOutWitness):
-    __slots__ = []
+    __slots__: List[str] = []
+
+    surjectionproof: WriteableField[bytes]
+    rangeproof: WriteableField[bytes]
 
 
 T_CElementsTxWitness = TypeVar('T_CElementsTxWitness',
@@ -441,21 +474,24 @@ T_CElementsTxWitness = TypeVar('T_CElementsTxWitness',
 
 class CElementsTxWitness(ReprOrStrMixin, CTxWitness, CoreElementsClass):
 
-    __slots__ = ['vtxinwit', 'vtxoutwit']
+    __slots__: List[str] = ['vtxinwit', 'vtxoutwit']
 
-    def __init__(self, vtxinwit: List[CElementsTxInWitness] = (),
-                 vtxoutwit: List[CElementsTxOutWitness] = ()):
+    vtxinwit: ReadOnlyField[Tuple[CElementsTxInWitness]]  # type: ignore
+    vtxoutwit: ReadOnlyField[Tuple[CElementsTxOutWitness]]
+
+    def __init__(self, vtxinwit: Iterable[CElementsTxInWitness] = (),
+                 vtxoutwit: Iterable[CElementsTxOutWitness] = ()):
         txinwit = []
-        for w in vtxinwit:
-            txinwit.append(CTxInWitness.from_txin_witness(w))
+        for wi in vtxinwit:
+            txinwit.append(CTxInWitness.from_txin_witness(wi))
 
         txoutwit = []
-        for w in vtxoutwit:
-            txoutwit.append(CTxOutWitness.from_txout_witness(w))
+        for wo in vtxoutwit:
+            txoutwit.append(CTxOutWitness.from_txout_witness(wo))
 
         if self.is_immutable():
-            txinwit = tuple(txinwit)
-            txoutwit = tuple(txoutwit)
+            txinwit = tuple(txinwit)  # type: ignore
+            txoutwit = tuple(txoutwit)  # type: ignore
 
         # Note: vtxoutwit is ignored, does not exist for bitcon tx witness
         object.__setattr__(self, 'vtxinwit', txinwit)
@@ -488,14 +524,22 @@ class CElementsTxWitness(ReprOrStrMixin, CTxWitness, CoreElementsClass):
         for i in range(len(self.vtxoutwit)):
             self.vtxoutwit[i].stream_serialize(f)
 
+    # We cannot use generic bound type for witness, because then
+    # the method at mutable class will accept only mutable instances.
+    # But without that, mypy complains that argument is incompatible
+    # with supertype. This is why we use type: ignore here.
     @classmethod
-    def from_instance(cls: Type[T_CElementsTxWitness],
+    def from_instance(cls: Type[T_CElementsTxWitness],  # type: ignore
                       witness: 'CElementsTxWitness'
                       ) -> T_CElementsTxWitness:
         return cls._from_instance(witness, witness.vtxinwit, witness.vtxoutwit)
 
+    # We cannot use generic bound type for witness, because then
+    # the method at mutable class will accept only mutable instances.
+    # But without that, mypy complains that argument is incompatible
+    # with supertype. This is why we use type: ignore here.
     @classmethod
-    def from_witness(cls: Type[T_CElementsTxWitness],
+    def from_witness(cls: Type[T_CElementsTxWitness],  # type: ignore
                      witness: 'CElementsTxWitness'
                      ) -> T_CElementsTxWitness:
         return cls.from_instance(witness)
@@ -507,13 +551,23 @@ class CElementsTxWitness(ReprOrStrMixin, CTxWitness, CoreElementsClass):
             ','.join(strfn(w) for w in self.vtxoutwit))
 
 
-class CElementsMutableTxWitness(CElementsTxWitness, CMutableTxWitness,
+class CElementsMutableTxWitness(CElementsTxWitness,  # type: ignore
+                                CMutableTxWitness,
                                 mutable_of=CElementsTxWitness):
-    __slots__ = []
+    __slots__: List[str] = []
+
+    vtxinwit: WriteableField[List[CElementsTxInWitness]]  # type: ignore
+    vtxoutwit: WriteableField[List[CElementsTxOutWitness]]  # type: ignore
 
 
 class CAssetIssuance(ImmutableSerializable, ReprOrStrMixin):
-    __slots__ = ['assetBlindingNonce', 'assetEntropy', 'nAmount', 'nInflationKeys']
+    __slots__: List[str] = ['assetBlindingNonce', 'assetEntropy', 'nAmount',
+                            'nInflationKeys']
+
+    assetBlindingNonce: ReadOnlyField[Uint256]
+    assetEntropy: ReadOnlyField[Uint256]
+    nAmount: ReadOnlyField[CConfidentialValue]
+    nInflationKeys: ReadOnlyField[CConfidentialValue]
 
     def __init__(self, assetBlindingNonce: Optional[Uint256] = Uint256(),
                  assetEntropy: Optional[Uint256] = Uint256(),
@@ -565,9 +619,16 @@ T_CElementsTxIn = TypeVar('T_CElementsTxIn', bound='CElementsTxIn')
 
 class CElementsTxIn(ReprOrStrMixin, CTxIn, CoreElementsClass):
     """Immutable Elements CTxIn"""
-    __slots__ = ['prevout', 'scriptSig', 'nSequence', 'assetIssuance', 'is_pegin']
+    __slots__: List[str] = ['prevout', 'scriptSig', 'nSequence',
+                            'assetIssuance', 'is_pegin']
 
-    def __init__(self, prevout: Optional[COutPoint] = None,
+    prevout: ReadOnlyField[CElementsOutPoint]  # type: ignore
+    scriptSig: ReadOnlyField[CElementsScript]  # type: ignore
+    nSequence: ReadOnlyField[int]
+    assetIssuance: ReadOnlyField[CAssetIssuance]
+    is_pegin: ReadOnlyField[bool]
+
+    def __init__(self, prevout: Optional[CElementsOutPoint] = None,
                  scriptSig: Optional[CElementsScript] = CElementsScript(),
                  nSequence: int = 0xffffffff,
                  assetIssuance: Optional[CAssetIssuance] = CAssetIssuance(),
@@ -638,21 +699,38 @@ class CElementsTxIn(ReprOrStrMixin, CTxIn, CoreElementsClass):
             self.nSequence, strfn(self.assetIssuance),
             self.is_pegin)
 
+    # We cannot use generic bound type for txin, because then
+    # the method at mutable class will accept only mutable instances.
+    # But without that, mypy complains that argument is incompatible
+    # with supertype. This is why we use type: ignore here.
     @classmethod
-    def from_instance(cls: Type[T_CElementsTxIn], txin: 'CElementsTxIn'):
+    def from_instance(cls: Type[T_CElementsTxIn],  # type: ignore
+                      txin: 'CElementsTxIn'):
         return cls._from_instance(
             txin,
             COutPoint.from_outpoint(txin.prevout),
             txin.scriptSig, txin.nSequence, txin.assetIssuance, txin.is_pegin)
 
+    # We cannot use generic bound type for txin, because then
+    # the method at mutable class will accept only mutable instances.
+    # But without that, mypy complains that argument is incompatible
+    # with supertype. This is why we use type: ignore here.
     @classmethod
-    def from_txin(cls: Type[T_CElementsTxIn], txin: 'CElementsTxIn'):
+    def from_txin(cls: Type[T_CElementsTxIn],  # type: ignore
+                  txin: 'CElementsTxIn'):
         return cls.from_instance(txin)
 
 
-class CElementsMutableTxIn(CElementsTxIn, CMutableTxIn, mutable_of=CElementsTxIn):
+class CElementsMutableTxIn(CElementsTxIn, CMutableTxIn,  # type: ignore
+                           mutable_of=CElementsTxIn):
     """A mutable Elements CTxIn"""
-    __slots__ = []
+    __slots__: List[str] = []
+
+    prevout: WriteableField[CElementsOutPoint]
+    scriptSig: WriteableField[CElementsScript]
+    nSequence: WriteableField[int]
+    assetIssuance: WriteableField[CAssetIssuance]
+    is_pegin: WriteableField[bool]
 
 
 T_CElementsTxOut = TypeVar('T_CElementsTxOut', bound='CElementsTxOut')
@@ -661,7 +739,12 @@ T_CElementsTxOut = TypeVar('T_CElementsTxOut', bound='CElementsTxOut')
 class CElementsTxOut(ReprOrStrMixin, CTxOut, CoreElementsClass):
     """An output of an Elements transaction
     """
-    __slots__ = ['nValue', 'scriptPubKey', 'nAsset', 'nNonce']
+    __slots__: List[str] = ['nValue', 'scriptPubKey', 'nAsset', 'nNonce']
+
+    nValue: ReadOnlyField[CConfidentialValue]  # type: ignore
+    scriptPubKey: ReadOnlyField[CElementsScript]  # type: ignore
+    nAsset: ReadOnlyField[CConfidentialAsset]
+    nNonce: ReadOnlyField[CConfidentialNonce]
 
     # nValue and scriptPubKey is first to be compatible with
     # CTxOut(nValue, scriptPubKey) calls
@@ -715,8 +798,7 @@ class CElementsTxOut(ReprOrStrMixin, CTxOut, CoreElementsClass):
             strfn(self.nNonce))
 
     def unblind_confidential_pair(
-        self, blinding_key: CKeyBase = None,
-        rangeproof: Union[bytes, bytearray] = None
+        self, *, blinding_key: CKeyBase, rangeproof: Union[bytes, bytearray]
     ) -> 'BlindingOrUnblindingResult':
 
         """Unblinds a txout, given a key and a rangeproof.
@@ -728,24 +810,43 @@ class CElementsTxOut(ReprOrStrMixin, CTxOut, CoreElementsClass):
             confValue=self.nValue, confAsset=self.nAsset, confNonce=self.nNonce,
             committedScript=self.scriptPubKey, rangeproof=rangeproof)
 
+    # We cannot use generic bound type for txout, because then
+    # the method at mutable class will accept only mutable instances.
+    # But without that, mypy complains that argument is incompatible
+    # with supertype. This is why we use type: ignore here.
     @classmethod
-    def from_instance(cls: Type[T_CElementsTxOut], txout: 'CElementsTxOut'):
+    def from_instance(cls: Type[T_CElementsTxOut],  # type: ignore
+                      txout: 'CElementsTxOut'):
         return cls._from_instance(txout,
                                   txout.nValue, txout.scriptPubKey,
                                   txout.nAsset, txout.nNonce)
 
+    # We cannot use generic bound type for txout, because then
+    # the method at mutable class will accept only mutable instances.
+    # But without that, mypy complains that argument is incompatible
+    # with supertype. This is why we use type: ignore here.
     @classmethod
-    def from_txout(cls: Type[T_CElementsTxOut], txout: 'CElementsTxOut'):
+    def from_txout(cls: Type[T_CElementsTxOut],  # type: ignore
+                   txout: 'CElementsTxOut'):
         return cls.from_instance(txout)
 
 
-class CElementsMutableTxOut(CElementsTxOut, CMutableTxOut,
+class CElementsMutableTxOut(CElementsTxOut, CMutableTxOut,  # type: ignore
                             mutable_of=CElementsTxOut):
-    __slots__ = []
+    __slots__: List[str] = []
+
+    nValue: WriteableField[CConfidentialValue]
+    scriptPubKey: WriteableField[CElementsScript]
+    nAsset: WriteableField[CConfidentialAsset]
+    nNonce: WriteableField[CConfidentialNonce]
 
 
 class CElementsTransaction(CTransaction, CoreElementsClass):
-    __slots__ = []
+    __slots__: List[str] = []
+
+    vin: ReadOnlyField[Tuple[CElementsTxIn]]  # type: ignore
+    vout: ReadOnlyField[Tuple[CElementsTxOut]]  # type: ignore
+    wit: ReadOnlyField[CElementsTxWitness]  # type: ignore
 
     @classmethod
     def stream_deserialize(cls, f):
@@ -814,9 +915,6 @@ class CElementsTransaction(CTransaction, CoreElementsClass):
 
         return numIssuances
 
-    def blind(self, *args, **kwargs):
-        raise TypeError('cannot blind immutable transction')
-
     def to_mutable(self) -> 'CElementsMutableTransaction':
         return cast('CElementsMutableTransaction', super().to_mutable())
 
@@ -824,14 +922,20 @@ class CElementsTransaction(CTransaction, CoreElementsClass):
         return cast('CElementsTransaction', super().to_immutable())
 
 
-class CElementsMutableTransaction(CElementsTransaction, CMutableTransaction,
+class CElementsMutableTransaction(CElementsTransaction,  # type: ignore
+                                  CMutableTransaction,
                                   mutable_of=CElementsTransaction):
+
+    vin: WriteableField[List[CElementsTxIn]]  # type: ignore
+    vout: WriteableField[List[CElementsTxOut]]  # type: ignore
+    wit: WriteableField[CElementsTxWitness]  # type: ignore
+
     def blind(self, *,
-              input_descriptors: List['BlindingInputDescriptor'] = (),
-              output_pubkeys: List[CPubKey] = (), # noqa
-              blind_issuance_asset_keys: List[CKeyBase] = (),
-              blind_issuance_token_keys: List[CKeyBase] = (),
-              auxiliary_generators: List[Union[bytes, bytearray]] = (),
+              input_descriptors: Sequence['BlindingInputDescriptor'] = (),
+              output_pubkeys: Sequence[CPubKey] = (), # noqa
+              blind_issuance_asset_keys: Sequence[CKeyBase] = (),
+              blind_issuance_token_keys: Sequence[CKeyBase] = (),
+              auxiliary_generators: Sequence[Union[bytes, bytearray]] = (),
               _rand_func=os.urandom) -> 'BlindingOrUnblindingResult':
 
         return blind_transaction(
@@ -845,11 +949,11 @@ class CElementsMutableTransaction(CElementsTransaction, CMutableTransaction,
 
 
 def blind_transaction(tx, *,
-                      input_descriptors: List['BlindingInputDescriptor'] = (),
-                      output_pubkeys: List[CPubKey] = (), # noqa
-                      blind_issuance_asset_keys: List[CKeyBase] = (),
-                      blind_issuance_token_keys: List[CKeyBase] = (),
-                      auxiliary_generators: List[Union[bytes, bytearray]] = (),
+                      input_descriptors: Sequence['BlindingInputDescriptor'] = (),
+                      output_pubkeys: Sequence[CPubKey] = (), # noqa
+                      blind_issuance_asset_keys: Sequence[CKeyBase] = (),
+                      blind_issuance_token_keys: Sequence[CKeyBase] = (),
+                      auxiliary_generators: Sequence[Union[bytes, bytearray]] = (),
                       _rand_func=os.urandom):
 
     """Blinds the transaction. Return a BlindingOrUnblindingResult"""
@@ -940,9 +1044,9 @@ def blind_transaction(tx, *,
     # Surjection proof prep
 
     # Needed to surj init, only matches to output asset matters, rest can be garbage
-    surjectionTargets = [None for _ in range(num_targets)]
+    surjectionTargets: List[Optional[Uint256]] = [None for _ in range(num_targets)]
     # Needed to construct the proof itself. Generators must match final transaction to be valid
-    targetAssetGenerators = [None for _ in range(num_targets)]
+    targetAssetGenerators: List[Optional[bytes]] = [None for _ in range(num_targets)]
 
     # input_asset_blinding_factors is only for inputs, not for issuances(0 by def)
     # but we need to create surjection proofs against this list so we copy and insert 0's
@@ -1006,13 +1110,14 @@ def blind_transaction(tx, *,
 
             if not issuance.nAmount.is_null():
                 surjectionTargets[totalTargets] = asset
-                targetAssetGenerators[totalTargets] = ctypes.create_string_buffer(SECP256K1_GENERATOR_SIZE)
+                ta_gen_buf = ctypes.create_string_buffer(SECP256K1_GENERATOR_SIZE)
                 ret = _secp256k1.secp256k1_generator_generate(
                     secp256k1_blind_context,
-                    targetAssetGenerators[totalTargets], asset.data)
+                    ta_gen_buf, asset.data)
                 if 1 != ret:
                     assert(ret == 0)
                     raise RuntimeError('secp256k1_generator_generate returned failure')
+                targetAssetGenerators[totalTargets] = ta_gen_buf.raw
                 # Issuance asset cannot be blinded by definition
                 targetAssetBlinders.append(Uint256())
                 totalTargets += 1
@@ -1020,13 +1125,13 @@ def blind_transaction(tx, *,
             if not issuance.nInflationKeys.is_null():
                 assert not token.is_null()
                 surjectionTargets[totalTargets] = token
-                targetAssetGenerators[totalTargets] = ctypes.create_string_buffer(SECP256K1_GENERATOR_SIZE)
+                ta_gen_buf = ctypes.create_string_buffer(SECP256K1_GENERATOR_SIZE)
                 ret = _secp256k1.secp256k1_generator_generate(
-                    secp256k1_blind_context,
-                    targetAssetGenerators[totalTargets], token.data)
+                    secp256k1_blind_context, ta_gen_buf, token.data)
                 if 1 != ret:
                     assert(ret == 0)
                     raise RuntimeError('secp256k1_generator_generate returned failure')
+                targetAssetGenerators[totalTargets] = ta_gen_buf.raw
                 # Issuance asset cannot be blinded by definition
                 targetAssetBlinders.append(Uint256())
                 totalTargets += 1
@@ -1042,7 +1147,7 @@ def blind_transaction(tx, *,
             if ret != 1:
                 assert ret == 0
                 return BlindingFailure(
-                    'auxiliary generator %d is not valid' % len(tx.vin)+n)
+                    f'auxiliary generator {len(tx.vin)+n} is not valid')
 
             targetAssetGenerators[totalTargets] = gen_buf.raw
             surjectionTargets[totalTargets] = Uint256()
@@ -1087,7 +1192,7 @@ def blind_transaction(tx, *,
             if len(blind_issuance_asset_keys) > nIn and blind_issuance_asset_keys[nIn] is not None:
                 if not issuance.nAmount.is_explicit():
                     return BlindingFailure(
-                        'blind_issuance_asset_keys is specified for input %d, ',
+                        'blind_issuance_asset_keys is specified for input %d, '
                         'but issuance.nAmount is not explicit' % nIn)
 
                 if len(tx.wit.vtxinwit) <= nIn \
@@ -1095,20 +1200,20 @@ def blind_transaction(tx, *,
                     nToBlind += 1
                 else:
                     return BlindingFailure(
-                        'blind_issuance_asset_keys is specified for input %d, ',
+                        'blind_issuance_asset_keys is specified for input %d, '
                         'but issuanceAmountRangeproof is already in place')
 
             if len(blind_issuance_token_keys) > nIn and blind_issuance_token_keys[nIn] is not None:
                 if not issuance.nInflationKeys.is_explicit():
                     return BlindingFailure(
-                        'blind_issuance_token_keys is specified for input %d, ',
+                        'blind_issuance_token_keys is specified for input %d, '
                         'but issuance.nInflationKeys is not explicit' % nIn)
                 if len(tx.wit.vtxinwit) <= nIn \
                         or len(tx.wit.vtxinwit[nIn].inflationKeysRangeproof) == 0:
                     nToBlind += 1
                 else:
                     return BlindingFailure(
-                        'blind_issuance_token_keys is specified for input %d, ',
+                        'blind_issuance_token_keys is specified for input %d, '
                         'but inflationKeysRangeproof is already in place')
 
     for nOut, out_pub in enumerate(output_pubkeys):
@@ -1571,12 +1676,12 @@ def generate_surjectionproof(surjectionTargets, targetAssetGenerators,
     return serialized_proof.raw
 
 
-def unblind_confidential_pair(blinding_key: CKeyBase = None,  # noqa
-                              confValue: CConfidentialValue = None,
-                              confAsset: CConfidentialAsset = None,
-                              confNonce: CConfidentialNonce = None,
-                              committedScript: CElementsScript = None,
-                              rangeproof: Union[bytes, bytearray] = None
+def unblind_confidential_pair(*, blinding_key: CKeyBase,  # noqa
+                              confValue: CConfidentialValue,
+                              confAsset: CConfidentialAsset,
+                              confNonce: CConfidentialNonce,
+                              committedScript: CElementsScript,
+                              rangeproof: Union[bytes, bytearray]
                               ) -> 'BlindingOrUnblindingResult':
     """Unblinds a pair of confidential value and confidential asset
     given key, nonce, committed script, and rangeproof.
@@ -1674,8 +1779,8 @@ def unblind_confidential_pair(blinding_key: CKeyBase = None,  # noqa
         return UnblindingFailure(
             'resulting message after rangeproof rewind is not 64 bytes in size')
 
-    asset_type = msg
-    asset_blinder = msg[32:]
+    asset_type = msg.raw[:32]
+    asset_blinder = msg.raw[32:64]
     recalculated_gen = ctypes.create_string_buffer(64)
     res = _secp256k1.secp256k1_generator_generate_blinded(
         secp256k1_blind_context, recalculated_gen, asset_type, asset_blinder)
@@ -1708,7 +1813,7 @@ def unblind_confidential_pair(blinding_key: CKeyBase = None,  # noqa
 
     return UnblindingSuccess(
         amount=amount.value, blinding_factor=Uint256(blinding_factor_out.raw),
-        asset=CAsset(asset_type[:32]), asset_blinding_factor=Uint256(msg[32:64]))
+        asset=CAsset(asset_type), asset_blinding_factor=Uint256(asset_blinder))
 
 
 def derive_blinding_key(blinding_derivation_key: CKeyBase,
@@ -1790,7 +1895,7 @@ class BlindingSuccess(BlindingOrUnblindingSuccess,
                                  ('num_successfully_blinded',
                                   'blinding_factors',
                                   'asset_blinding_factors'))):
-    __slots__ = ()
+    __slots__: List[str] = []
 
     def __init__(self, *args, **kwargs):
         # For newer python versions, type annotations can be used to

@@ -14,10 +14,10 @@ from .version import __version__
 import elementstx.core
 import elementstx.wallet
 
-from bitcointx import BitcoinMainnetParams
+from bitcointx import ChainParamsBase
 
 
-class ElementsParams(BitcoinMainnetParams,
+class ElementsParams(ChainParamsBase,
                      name=('elements', 'elements/elementsregtest')):
     RPC_PORT = 7041
     WALLET_DISPATCHER = elementstx.wallet.WalletElementsClassDispatcher

@@ -45,7 +45,7 @@ class WalletElementsClass(WalletCoinClass,
     ...
 
 
-class WalletElementsLiquidV1ClassDispatcher(WalletCoinClassDispatcher,
+class WalletElementsLiquidV1ClassDispatcher(WalletElementsClassDispatcher,
                                             depends=[CoreElementsClassDispatcher]):
     ...
 
@@ -64,6 +64,7 @@ T_CCoinConfidentialAddress = TypeVar('T_CCoinConfidentialAddress',
 
 
 class CCoinConfidentialAddress(CCoinAddress):
+
     @classmethod
     def from_unconfidential(
         cls: Type[T_CCoinConfidentialAddress], unconfidential_adr: CCoinAddress,
@@ -123,10 +124,19 @@ class CCoinConfidentialAddress(CCoinAddress):
             .format(cls.__name__, unconfidential_adr.__class__.__name__))
 
     def to_unconfidential(self) -> CCoinAddress:
+        # NOTE: this assert also makes mypy ignore that
+        # _unconfidential_address_class is not declared
+        # for CCoinConfidentialAddress. But this is OK, because declaring
+        # it will require to convert CCoinConfidentialAddress to generic class,
+        # and is not convenient, and not gives much in correctness.
+        assert isinstance(self, bytes), \
+            "descendant classes must also be bytes subclasses"
         return self._unconfidential_address_class.from_bytes(self[33:])
 
     @property
     def blinding_pubkey(self) -> CPubKey:
+        assert isinstance(self, bytes), \
+            "descendant classes must also be bytes subclasses"
         return CPubKey(self[0:33])
 
     def to_scriptPubKey(self) -> CScript:
@@ -202,8 +212,8 @@ class CBlech32CoinConfidentialAddress(CBlech32DataDispatched,
                                       CCoinConfidentialAddress):
     """A Blech32-encoded coin confidential address"""
 
-    _data_length = None
-    blech32_witness_version = None
+    _data_length: int
+    blech32_witness_version: int
 
 
 class P2SHCoinConfidentialAddress(CBase58CoinConfidentialAddress,

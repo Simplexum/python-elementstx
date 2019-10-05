@@ -156,6 +156,10 @@ class CElementsScript(CScript, ScriptElementsClass):
                 return None
 
             op, op_data, _ = next(op_iter)
+
+            if op_data is None:
+                return None
+
             if len(op_data) != 32:
                 return None
 
@@ -163,8 +167,11 @@ class CElementsScript(CScript, ScriptElementsClass):
 
             op, op_data, _ = next(op_iter)
 
+            if op_data is None:
+                return None
+
             if len(op_data) == 0:
-                return False
+                return None
 
             pegout_scriptpubkey = self.__class__(op_data)
 

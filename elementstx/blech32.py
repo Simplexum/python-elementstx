@@ -36,7 +36,7 @@ class CBlech32Data(bytes):
 
     Includes a witver and checksum.
     """
-    blech32_hrp = None
+    blech32_hrp: str
     blech32_witness_version: int = -1
     _data_length: int
 
