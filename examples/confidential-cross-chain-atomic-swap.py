@@ -32,7 +32,7 @@
 import os
 import sys
 import time
-import ecdsa
+import ecdsa  # type: ignore
 import signal
 import hashlib
 import traceback

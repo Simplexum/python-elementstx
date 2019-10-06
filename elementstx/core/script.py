@@ -17,7 +17,7 @@ from typing import Optional, Tuple
 
 from bitcointx.util import no_bool_use_as_property, ensure_isinstance
 from bitcointx.core import Hash
-from bitcointx.core.key import CKey
+from bitcointx.core.key import CKey, CKeyBase
 from bitcointx.core.script import (
     ScriptCoinClassDispatcher, ScriptCoinClass,
     CScript, CScriptOp,
@@ -28,6 +28,7 @@ from bitcointx.core.script import (
     SIGHASH_NONE,
     SIGHASH_SINGLE,
     SIGHASH_ANYONECANPAY,
+    SIGHASH_Type, SIGVERSION_Type
 )
 from bitcointx.core.serialize import BytesSerializer
 import elementstx.core
@@ -52,8 +53,14 @@ class ScriptElementsClass(ScriptCoinClass,
     ...
 
 
-def RawElementsSignatureHash(script, txTo, inIdx, hashtype, amount=0,
-                             sigversion=SIGVERSION_BASE):
+def RawElementsSignatureHash(
+    script: CScript,
+    txTo: 'elementstx.core.CElementsTransaction',
+    inIdx: int,
+    hashtype: SIGHASH_Type,
+    amount: Optional['elementstx.core.CConfidentialValue'] = None,
+    sigversion: SIGVERSION_Type = SIGVERSION_BASE
+) -> Tuple[bytes, Optional[str]]:
     """Consensus-correct SignatureHash
 
     Returns (hash, err) to precisely match the consensus-critical behavior of
@@ -67,10 +74,13 @@ def RawElementsSignatureHash(script, txTo, inIdx, hashtype, amount=0,
 
     if sigversion == SIGVERSION_BASE:
         # revert to standard bitcoin signature hash
+        # amount is not used in SIGVERSION_BASE sighash,
+        # so we specify invalid value.
         return RawBitcoinSignatureHash(script, txTo, inIdx, hashtype,
-                                       amount=amount, sigversion=sigversion)
+                                       amount=-1, sigversion=sigversion)
 
     ensure_isinstance(amount, elementstx.core.CConfidentialValue, 'amount')
+    assert isinstance(amount, elementstx.core.CConfidentialValue)
 
     hashPrevouts = b'\x00'*32
     hashSequence = b'\x00'*32
@@ -86,8 +96,9 @@ def RawElementsSignatureHash(script, txTo, inIdx, hashtype, amount=0,
                 serialize_issuance += b'\x00'
             else:
                 f = BytesIO()
-                BytesSerializer.stream_serialize(vin.assetIssuance, f)
-                serialize_issuance += f.getbuffer()
+                BytesSerializer.stream_serialize(
+                    vin.assetIssuance.serialize(), f)
+                serialize_issuance += bytes(f.getbuffer())
         hashPrevouts = Hash(serialize_prevouts)
         hashIssuance = Hash(serialize_issuance)
 
@@ -116,7 +127,8 @@ def RawElementsSignatureHash(script, txTo, inIdx, hashtype, amount=0,
     f.write(amount.commitment)
     f.write(struct.pack("<I", txTo.vin[inIdx].nSequence))
     if not txTo.vin[inIdx].assetIssuance.is_null():
-        BytesSerializer.stream_serialize(txTo.vin[inIdx].assetIssuance, f)
+        BytesSerializer.stream_serialize(
+            txTo.vin[inIdx].assetIssuance.serialize(), f)
     f.write(hashOutputs)
     f.write(struct.pack("<i", txTo.nLockTime))
     f.write(struct.pack("<i", hashtype))
@@ -128,7 +140,7 @@ def RawElementsSignatureHash(script, txTo, inIdx, hashtype, amount=0,
 
 class CElementsScript(CScript, ScriptElementsClass):
 
-    def derive_blinding_key(self, blinding_derivation_key) -> CKey:
+    def derive_blinding_key(self, blinding_derivation_key: CKeyBase) -> CKey:
         return elementstx.core.derive_blinding_key(
             blinding_derivation_key, self)
 
@@ -138,7 +150,16 @@ class CElementsScript(CScript, ScriptElementsClass):
             return True
         return super(CElementsScript, self).is_unspendable()
 
-    def raw_sighash(self, txTo, inIdx, hashtype, amount=0, sigversion=SIGVERSION_BASE):
+    # The signature cannot be compatible with raw_sighash,
+    # because the amount is a confidential value, that cannot be
+    # a subclass of int (the type of amount in CBitcoinScript)
+    def raw_sighash(self,  # type: ignore
+                    txTo: 'elementstx.core.CElementsTransaction',
+                    inIdx: int,
+                    hashtype: SIGHASH_Type,
+                    amount: Optional['elementstx.core.CConfidentialValue'] = None,
+                    sigversion: SIGVERSION_Type = SIGVERSION_BASE
+                    ) -> Tuple[bytes, Optional[str]]:
         """Consensus-correct SignatureHash
 
         Returns (hash, err) to precisely match the consensus-critical behavior of

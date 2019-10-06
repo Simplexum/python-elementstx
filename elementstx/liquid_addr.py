@@ -22,11 +22,13 @@
 
 """Reference implementation for Blech32 and segwit addresses."""
 
+from typing import List, Tuple, Optional, Union
+
 
 CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
 
 
-def blech32_polymod(values):
+def blech32_polymod(values: List[int]) -> int:
     """Internal function that computes the blech32 checksum."""
     generator = [0x7d52fba40bd886, 0x5e8dbf1a03950c, 0x1c3a3c74072a18, 0x385d72fa0e5139, 0x7093e5a608865b] # new generators, 7 bytes
     chk = 1
@@ -38,17 +40,17 @@ def blech32_polymod(values):
     return chk
 
 
-def blech32_hrp_expand(hrp):
+def blech32_hrp_expand(hrp: str) -> List[int]:
     """Expand the HRP into values for checksum computation."""
     return [ord(x) >> 5 for x in hrp] + [0] + [ord(x) & 31 for x in hrp]
 
 
-def blech32_verify_checksum(hrp, data):
+def blech32_verify_checksum(hrp: str, data: List[int]) -> bool:
     """Verify a checksum given HRP and converted data characters."""
     return blech32_polymod(blech32_hrp_expand(hrp) + data) == 1
 
 
-def blech32_create_checksum(hrp, data):
+def blech32_create_checksum(hrp: str, data: List[int]) -> List[int]:
     """Compute the checksum values given HRP and data."""
     values = blech32_hrp_expand(hrp) + data
     polymod = blech32_polymod(values + [0]*12) ^ 1 # 6->12
@@ -56,13 +58,13 @@ def blech32_create_checksum(hrp, data):
 #                            ^ 5                          ^ 6
 
 
-def blech32_encode(hrp, data):
+def blech32_encode(hrp: str, data: List[int]) -> str:
     """Compute a blech32 string given HRP and data values."""
     combined = data + blech32_create_checksum(hrp, data)
     return hrp + '1' + ''.join([CHARSET[d] for d in combined])
 
 
-def blech32_decode(bech):
+def blech32_decode(bech: str) -> Tuple[Optional[str], Optional[List[int]]]:
     """Validate a blech32 string, and determine HRP and data."""
     if ((any(ord(x) < 33 or ord(x) > 126 for x in bech)) or
             (bech.lower() != bech and bech.upper() != bech)):
@@ -80,7 +82,8 @@ def blech32_decode(bech):
     return (hrp, data[:-12]) # 6->12
 
 
-def convertbits(data, frombits, tobits, pad=True):
+def convertbits(data: Union[bytes, List[int]], frombits: int, tobits: int,
+                pad: bool = True) -> Optional[List[int]]:
     """General power-of-2 base conversion."""
     acc = 0
     bits = 0
@@ -103,13 +106,14 @@ def convertbits(data, frombits, tobits, pad=True):
     return ret
 
 
-def decode(hrp, addr):
+def decode(hrp: str, addr: str) -> Tuple[Optional[int], Optional[bytes]]:
     """Decode a segwit confidential address.
     Its payload is longer than the payload for unconfidential address
     by 33 bytes (the length of blinding pubkey)"""
     hrpgot, data = blech32_decode(addr)
     if hrpgot != hrp:
         return (None, None)
+    assert data is not None
     decoded = convertbits(data[1:], 5, 8, False)
     if decoded is None or len(decoded) < 2 or len(decoded) > 40+33:
         return (None, None)
@@ -117,12 +121,15 @@ def decode(hrp, addr):
         return (None, None)
     if data[0] == 0 and len(decoded) != 20+33 and len(decoded) != 32+33:
         return (None, None)
-    return (data[0], decoded)
+    return (data[0], bytes(decoded))
 
 
-def encode(hrp, witver, witprog):
+def encode(hrp: str, witver: int, witprog: bytes) -> Optional[str]:
     """Encode a segwit address."""
-    ret = blech32_encode(hrp, [witver] + convertbits(witprog, 8, 5))
+    decoded = convertbits(witprog, 8, 5)
+    if decoded is None:
+        return None
+    ret = blech32_encode(hrp, [witver] + decoded)
     if decode(hrp, ret) == (None, None):
         return None
     return ret

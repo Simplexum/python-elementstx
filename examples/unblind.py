@@ -21,8 +21,9 @@
 import sys
 
 from bitcointx import select_chain_params
-from bitcointx.core import x, CTransaction, satoshi_to_coins
+from bitcointx.core import x, satoshi_to_coins
 from bitcointx.wallet import CCoinKey, CCoinAddress
+from elementstx.core import CElementsTransaction
 from elementstx.wallet import CCoinConfidentialAddress
 
 
@@ -38,7 +39,10 @@ if __name__ == '__main__':
     # Read in and decode the blinded transaction.
     # expected to be hex-encoded as one line.
     with open(sys.argv[1]) as f:
-        tx = CTransaction.deserialize(x(f.readline().rstrip()))
+        # We could use CTransaction here, but if we want to
+        # use mypy to do static checking, we need to use the elements-specific
+        # classes. mypy does cannot know about dynamic class dispatch.
+        tx = CElementsTransaction.deserialize(x(f.readline().rstrip()))
 
     # Read in the blinding key, expected to be in WIF format.
     with open(sys.argv[2]) as f:

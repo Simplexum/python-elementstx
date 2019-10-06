@@ -12,7 +12,7 @@
 # pylama:ignore=E501
 
 from io import BytesIO
-from typing import Union, TypeVar, Type
+from typing import Union, List, TypeVar, Type
 
 from bitcointx.core.key import (
     CPubKey
@@ -26,7 +26,9 @@ from bitcointx.wallet import (
     CCoinAddressError,
     CCoinKey, CCoinExtKey, CCoinExtPubKey
 )
-from bitcointx.util import dispatcher_mapped_list, ensure_isinstance
+from bitcointx.util import (
+    dispatcher_mapped_list, ensure_isinstance, ClassMappingDispatcher
+)
 from .core import (
     CoreElementsClassDispatcher, CElementsTxOut,
     CConfidentialCommitmentBase, CConfidentialValue, CConfidentialAsset,
@@ -145,7 +147,7 @@ class CCoinConfidentialAddress(CCoinAddress):
     def to_redeemScript(self) -> CScript:
         return self.to_unconfidential().to_scriptPubKey()
 
-    def from_scriptPubKey(self):
+    def from_scriptPubKey(self) -> None:  # type: ignore
         raise CCoinAddressError(
             'cannot create confidential address from scriptPubKey')
 
@@ -186,9 +188,13 @@ class P2WPKHCoinConfidentialAddressError(CBlech32AddressError):
     """Raised when an invalid P2PKH confidential address is encountered"""
 
 
+T_CBlech32DataDispatched = TypeVar('T_CBlech32DataDispatched',
+                                   bound='CBlech32DataDispatched')
+
+
 class CBlech32DataDispatched(elementstx.blech32.CBlech32Data):
 
-    def __init__(self, _s):
+    def __init__(self, _s: str) -> None:
         if self.__class__.blech32_witness_version < 0:
             raise TypeError(
                 f'{self.__class__.__name__} must not be instantiated directly')
@@ -197,7 +203,10 @@ class CBlech32DataDispatched(elementstx.blech32.CBlech32Data):
                 f'lengh of the data is not {self.__class__._data_length}')
 
     @classmethod
-    def blech32_get_match_candidates(cls):
+    def blech32_get_match_candidates(
+        cls: Type[T_CBlech32DataDispatched]
+    ) -> List[Type[T_CBlech32DataDispatched]]:
+        assert isinstance(cls, ClassMappingDispatcher)
         candidates = dispatcher_mapped_list(cls)
         if not candidates:
             if cls.blech32_witness_version < 0:

@@ -27,7 +27,7 @@ import sys
 from bitcointx import select_chain_params
 from bitcointx.core import (
     x, b2x, Uint256, Hash160,
-    CTransaction, CTxIn, CTxOut, COutPoint,
+    CTransaction, CTxIn, COutPoint,
     CMutableTxOut, CTxInWitness
 )
 from bitcointx.core.key import CPubKey
@@ -35,7 +35,7 @@ from bitcointx.core.scripteval import VerifyScript, SCRIPT_VERIFY_P2SH
 from bitcointx.wallet import (
     # The address classes will use base58 prefixes for Elements
     # after we call select_chain_params('elements')
-    CCoinKey, CCoinAddress, P2SHCoinAddress,
+    CCoinKey, P2SHCoinAddress,
 )
 from bitcointx.core.script import (
     CScript, OP_RETURN, CScriptWitness,
@@ -44,8 +44,9 @@ from bitcointx.core.script import (
 )
 from elementstx.core import (
     CConfidentialValue, CConfidentialAsset, BlindingInputDescriptor,
+    CElementsTransaction, CElementsTxOut, CElementsMutableTxOut
 )
-from elementstx.wallet import CCoinConfidentialAddress
+from elementstx.wallet import CCoinConfidentialAddress, CElementsAddress
 
 
 if __name__ == '__main__':
@@ -61,7 +62,10 @@ if __name__ == '__main__':
     # Read in and decode the blinded transaction.
     # expected to be hex-encoded as one line.
     with open(sys.argv[1]) as f:
-        input_tx = CTransaction.deserialize(x(f.readline().rstrip()))
+        # We could use CTransaction here, but if we want to
+        # use mypy to do static checking, we need to use the elements-specific
+        # classes. mypy does cannot know about dynamic class dispatch.
+        input_tx = CElementsTransaction.deserialize(x(f.readline().rstrip()))
 
     # Read in the key, expected to be in WIF format.
     with open(sys.argv[2]) as f:
@@ -71,7 +75,7 @@ if __name__ == '__main__':
     with open(sys.argv[3]) as f:
         bkey = CCoinKey.from_secret_bytes(x(f.readline().rstrip()))
 
-    dst_addr = CCoinAddress(sys.argv[4])
+    dst_addr = CElementsAddress(sys.argv[4])
 
     # Construct P2SH_P2WPKH address from the loaded key
     spk = CScript([0, Hash160(key.pub)]).to_p2sh_scriptPubKey()
@@ -112,7 +116,7 @@ if __name__ == '__main__':
         amount_to_spend = utxo.nValue.to_amount()
         # If the value is explicit, asset should be explicit too
         assert utxo.nAsset.is_explicit()
-        asset_to_spend = utxo.nAsset
+        asset_to_spend = utxo.nAsset.to_asset()
         # No blinding
         blinding_factor = Uint256()
         asset_blinding_factor = Uint256()
@@ -157,15 +161,15 @@ if __name__ == '__main__':
     # Note that the CTransaction is just a frontend for convenience,
     # and the created object will be the instance of the
     # CElementsTransaction class. The same with CTxIn, CTxOut, etc.
-    tx = CTransaction(
+    tx = CElementsTransaction(
         vin=[CTxIn(prevout=COutPoint(hash=input_tx.GetTxid(),
                                      n=utxo_n))],
-        vout=[CTxOut(nValue=CConfidentialValue(dst_value),
-                     nAsset=CConfidentialAsset(asset_to_spend),
-                     scriptPubKey=dst_addr.to_scriptPubKey()),
+        vout=[CElementsTxOut(nValue=CConfidentialValue(dst_value),
+                             nAsset=CConfidentialAsset(asset_to_spend),
+                             scriptPubKey=dst_addr.to_scriptPubKey()),
               # Fee output must be explicit in Elements
-              CTxOut(nValue=CConfidentialValue(fee_value),
-                     nAsset=fee_asset)])
+              CElementsTxOut(nValue=CConfidentialValue(fee_value),
+                             nAsset=fee_asset)])
 
     # Add empty pubkey for fee output
     output_pubkeys.append(CPubKey())
@@ -180,7 +184,7 @@ if __name__ == '__main__':
         # If dst_addr is not confidential, we need to add dummy blinded output.
         dummy_blinding_key = CCoinKey.from_secret_bytes(os.urandom(32))
         tx.vout.append(
-            CMutableTxOut(
+            CElementsMutableTxOut(
                 nValue=CConfidentialValue(0),
                 nAsset=CConfidentialAsset(asset_to_spend),
                 scriptPubKey=CScript([OP_RETURN])))

@@ -11,9 +11,15 @@
 
 """Blech32 encoding and decoding"""
 
+from typing import TypeVar, Type, List, Optional, cast
+
 from elementstx.liquid_addr import encode, decode
 import bitcointx
 import bitcointx.core
+
+
+T_CBlech32Data = TypeVar('T_CBlech32Data', bound='CBlech32Data')
+T_unbounded = TypeVar('T_unbounded')
 
 
 class Blech32Error(bitcointx.core.AddressDataEncodingError):
@@ -40,7 +46,7 @@ class CBlech32Data(bytes):
     blech32_witness_version: int = -1
     _data_length: int
 
-    def __new__(cls, s):
+    def __new__(cls: Type[T_CBlech32Data], s: str) -> T_CBlech32Data:
         """from blech32 addr to """
         if cls.blech32_hrp is None:
             raise TypeError(
@@ -52,7 +58,7 @@ class CBlech32Data(bytes):
 
         return cls.blech32_match_progam_and_version(data, witver)
 
-    def __init__(self, s):
+    def __init__(self, s: str) -> None:
         """Initialize from blech32-encoded string
 
         Note: subclasses put your initialization routines here, but ignore the
@@ -61,13 +67,16 @@ class CBlech32Data(bytes):
         """
 
     @classmethod
-    def blech32_get_match_candidates(cls):
+    def blech32_get_match_candidates(cls: Type[T_CBlech32Data]
+                                     ) -> List[Type[T_CBlech32Data]]:
         if cls.blech32_witness_version >= 0:
             return [cls]
         return []
 
     @classmethod
-    def blech32_match_progam_and_version(cls, data: bytes, witver: int):
+    def blech32_match_progam_and_version(cls: Type[T_CBlech32Data],
+                                         data: bytes, witver: int
+                                         ) -> T_CBlech32Data:
         """Instantiate from data and witver.
         if witver is not set for class, this is equivalent of from_bytes()"""
         candidates = cls.blech32_get_match_candidates()
@@ -96,8 +105,10 @@ class CBlech32Data(bytes):
             'address class')
 
     @classmethod
-    def from_bytes(cls, witprog: bytes, witver: int = None):
+    def from_bytes(cls: Type[T_unbounded], witprog: bytes,
+                   witver: Optional[int] = None) -> T_unbounded:
         """Instantiate from witver and data"""
+        assert issubclass(cls, CBlech32Data)
         cls_wv = cls.blech32_witness_version
         if witver is None:
             if cls_wv < 0:
@@ -123,9 +134,9 @@ class CBlech32Data(bytes):
             self.blech32_witness_version = witver
         self.__init__(None)
 
-        return self
+        return cast(T_unbounded, self)
 
-    def to_bytes(self):
+    def to_bytes(self) -> bytes:
         """Convert to bytes instance
 
         Note that it's the data represented that is converted; the checkum and
@@ -142,7 +153,7 @@ class CBlech32Data(bytes):
                 'was successfully decoded earlier')
         return result
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return '%s(%r)' % (self.__class__.__name__, str(self))
 
 

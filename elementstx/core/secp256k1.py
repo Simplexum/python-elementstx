@@ -13,6 +13,7 @@
 # pylama:ignore=E501
 
 import ctypes
+from typing import List
 
 from bitcointx.core.secp256k1 import (
     load_secp256k1_library,
@@ -23,7 +24,7 @@ from bitcointx.core.secp256k1 import (
 _secp256k1 = load_secp256k1_library()
 
 
-def _set_zkp_func_types():
+def _set_zkp_func_types() -> None:
     _secp256k1.secp256k1_rangeproof_info.restype = ctypes.c_int
     _secp256k1.secp256k1_rangeproof_info.argtypes = [
         ctypes.c_void_p,
@@ -155,7 +156,7 @@ if getattr(_secp256k1, 'secp256k1_rangeproof_info', None):
         _secp256k1, SECP256K1_CONTEXT_SIGN | SECP256K1_CONTEXT_VERIFY)
 
 
-def build_aligned_data_array(data_list, expected_len):
+def build_aligned_data_array(data_list: List[bytes], expected_len: int) -> bytes:
     assert expected_len % 32 == 0, "we only deal with 32-byte aligned data"
     # It is much simpler to just build buffer by concatenating the data,
     # than create a ctypes array of N-byte arrays.
