@@ -141,6 +141,14 @@ class CCoinConfidentialAddress(CCoinAddress):
             "descendant classes must also be bytes subclasses"
         return CPubKey(self[0:33])
 
+    # NOTE: The return type is CScript here, because is we make
+    # it CElementsScript, that would become incompatible with CCoinAddress,
+    # and we would need to type:ignore all the CCoinAddress subclasses below.
+    # The proper way might be to make CCoinAddress a generic class, and
+    # specify concrete CScript subclass when defining the address subclasses.
+    # but this would make defining address classes less convenient -- each
+    # address class declaration would need to specify which script class
+    # it returns.
     def to_scriptPubKey(self) -> CScript:
         return self.to_unconfidential().to_scriptPubKey()
 
