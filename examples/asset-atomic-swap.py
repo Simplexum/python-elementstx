@@ -256,7 +256,7 @@ def alice(say, recv, send, die, rpc):
         # at all (auxiliary_generators argument to tx.blind()),
         # then all the elements of that array must have correct
         # type (bytes) and length (33). This is a requirement of the original
-        # Elements Core API, and python-bitcointx requires this, too.
+        # Elements Core API, and python-elementstx requires this, too.
         assetcommitments.append(b'\x00'*33)
 
     # Add outputs to give Bob all our assets, and fill output pubkeys
