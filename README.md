@@ -50,7 +50,7 @@ select_chain_params(ElementsParams)
 Without the switch of chain parameters:
 
 ```python
-from elementstx.core import ElementsTransaction
+from elementstx.core import CElementsTransaction
 
 transaction_data = read_tx_data()
 tx = CElementsTransaction.deserialze(transaction_data)
