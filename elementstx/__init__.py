@@ -29,6 +29,9 @@ class ElementsParams(ChainParamsBase,
             return name_parts[0] + 'regtest'
         return name_parts[1]
 
+    def get_network_id(self) -> str:
+        return self.get_datadir_extra_name()
+
 
 class ElementsLiquidV1Params(ElementsParams, name='elements/liquidv1'):
     RPC_PORT = 7042

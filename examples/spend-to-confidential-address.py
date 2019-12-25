@@ -215,7 +215,7 @@ if __name__ == '__main__':
         sys.stderr.write('unable to blind: {}'.format(blind_result.error))
         sys.exit(-1)
 
-    num_expected_to_blind = sum(int(pub.is_valid()) for pub in output_pubkeys)
+    num_expected_to_blind = sum(int(pub.is_nonempty()) for pub in output_pubkeys)
     assert blind_result.num_successfully_blinded == num_expected_to_blind,\
         "expected to blind {}, actually blinded {}".format(
             num_expected_to_blind, blind_result.num_successfully_blinded)

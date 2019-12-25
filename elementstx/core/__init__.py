@@ -552,7 +552,7 @@ class CElementsTxOutWitness(CTxOutWitness, CoreElementsClass):
                                  value_min=value_min.value, value_max=value_max.value)
 
     @classmethod
-    def from_instance(cls: Type[T_CElementsTxOutWitness],
+    def from_instance(cls: Type[T_CElementsTxOutWitness],  # type: ignore
                       txout_witness: 'CElementsTxOutWitness',
                       ) -> T_CElementsTxOutWitness:
         return cls._from_instance(txout_witness,
@@ -1364,7 +1364,7 @@ def blind_transaction(tx: CElementsMutableTransaction, *,
                         'but inflationKeysRangeproof is already in place')
 
     for nOut, out_pub in enumerate(output_pubkeys):
-        if out_pub.is_valid():
+        if out_pub.is_nonempty():
             # Keys must be valid and outputs completely unblinded or else call fails
             if not out_pub.is_fullyvalid():
                 return BlindingFailure(
