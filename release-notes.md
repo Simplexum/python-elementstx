@@ -1,5 +1,5 @@
 
-## v0.1.2.dev0
+## v0.1.2
 
 * Fixes to sync with python-bitcointx latest version
 * Add type annotations and runtime instance type checks
