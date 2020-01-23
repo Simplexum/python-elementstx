@@ -20,21 +20,28 @@
 
 import sys
 
-from bitcointx import select_chain_params
+from bitcointx import select_chain_params, get_current_chain_params
 from bitcointx.core import x, satoshi_to_coins
 from bitcointx.wallet import CCoinKey, CCoinAddress
+from elementstx import ElementsParams
 from elementstx.core import CElementsTransaction
 from elementstx.wallet import CCoinConfidentialAddress
 
 
 if __name__ == '__main__':
-    if len(sys.argv) != 3:
-        print("usage: {} <raw-hex-tx-file> <blinding-key-file>"
+    if len(sys.argv) not in (3, 4):
+        print("usage: {} <raw-hex-tx-file> <blinding-key-file> [chainparams]"
               .format(sys.argv[0]))
         sys.exit(-1)
 
-    # Switch the chain parameters to Elements
-    select_chain_params('elements')
+    if len(sys.argv) == 4:
+        select_chain_params(sys.argv[3])
+        if not isinstance(get_current_chain_params(), ElementsParams):
+            print('specified chainparams is not Elements-compatible')
+            sys.exit(-1)
+    else:
+        # Switch the chain parameters to Elements regtest
+        select_chain_params('elements')
 
     # Read in and decode the blinded transaction.
     # expected to be hex-encoded as one line.

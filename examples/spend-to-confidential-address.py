@@ -24,11 +24,10 @@
 import os
 import sys
 
-from bitcointx import select_chain_params
+from bitcointx import select_chain_params, get_current_chain_params
 from bitcointx.core import (
     x, b2x, Uint256, Hash160,
-    CTransaction, CTxIn, COutPoint,
-    CMutableTxOut, CTxInWitness
+    CTxIn, COutPoint, CTxInWitness
 )
 from bitcointx.core.key import CPubKey
 from bitcointx.core.scripteval import VerifyScript, SCRIPT_VERIFY_P2SH
@@ -42,6 +41,7 @@ from bitcointx.core.script import (
     SIGHASH_ALL, SIGVERSION_WITNESS_V0,
     OP_DUP, OP_EQUALVERIFY, OP_HASH160, OP_CHECKSIG
 )
+from elementstx import ElementsParams
 from elementstx.core import (
     CConfidentialValue, CConfidentialAsset, BlindingInputDescriptor,
     CElementsTransaction, CElementsTxOut, CElementsMutableTxOut
@@ -50,14 +50,20 @@ from elementstx.wallet import CCoinConfidentialAddress, CElementsAddress
 
 
 if __name__ == '__main__':
-    if len(sys.argv) != 5:
+    if len(sys.argv) not in (5, 6):
         sys.stderr.write(
-            "usage: {} <raw-hex-tx-file> <spending-key-wif-file> <unblinding-key-hex-file> <destination-address>\n"
+            "usage: {} <raw-hex-tx-file> <spending-key-wif-file> <unblinding-key-hex-file> <destination-address> [chainparams]\n"
             .format(sys.argv[0]))
         sys.exit(-1)
 
-    # Switch the chain parameters to Elements
-    select_chain_params('elements')
+    if len(sys.argv) == 6:
+        select_chain_params(sys.argv[5])
+        if not isinstance(get_current_chain_params(), ElementsParams):
+            print('specified chainparams is not Elements-compatible')
+            sys.exit(-1)
+    else:
+        # Switch the chain parameters to Elements
+        select_chain_params('elements')
 
     # Read in and decode the blinded transaction.
     # expected to be hex-encoded as one line.
