@@ -1787,6 +1787,7 @@ def generate_surjectionproof(surjectionTargets: List[Uint256],
     input_index = ctypes.c_size_t()
     proof = ctypes.c_void_p()
 
+    # Find correlation between asset tag and listed input tags
     ret = _secp256k1.secp256k1_surjectionproof_allocate_initialized(
         secp256k1_blind_context,
         ctypes.byref(proof), ctypes.byref(input_index),
@@ -1801,6 +1802,7 @@ def generate_surjectionproof(surjectionTargets: List[Uint256],
     try:
         ephemeral_input_tags_buf = build_aligned_data_array(targetAssetGenerators, 64)
 
+        # Using the input chosen, build proof
         ret = _secp256k1.secp256k1_surjectionproof_generate(
             secp256k1_blind_context, proof,
             ephemeral_input_tags_buf, len(targetAssetGenerators),
@@ -1810,6 +1812,7 @@ def generate_surjectionproof(surjectionTargets: List[Uint256],
             assert(ret == 0)
             raise RuntimeError('secp256k1_surjectionproof_generate returned failure')
 
+        # Double-check answer
         ret = _secp256k1.secp256k1_surjectionproof_verify(
             secp256k1_blind_context, proof,
             ephemeral_input_tags_buf, len(targetAssetGenerators), gen)
@@ -1818,6 +1821,7 @@ def generate_surjectionproof(surjectionTargets: List[Uint256],
             assert(ret == 0)
             raise RuntimeError('secp256k1_surjectionproof_verify returned failure')
 
+        # Serialize into output witness structure
         expected_output_len = _secp256k1.secp256k1_surjectionproof_serialized_size(
             secp256k1_blind_context, proof)
         output_len = ctypes.c_size_t(expected_output_len)
