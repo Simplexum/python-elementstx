@@ -27,7 +27,7 @@ import hashlib
 from io import BytesIO
 from typing import (
     Union, List, Tuple, Iterable, Sequence, Optional, Type, TypeVar,
-    Callable, Any, cast
+    Callable, Any
 )
 from collections import namedtuple
 
@@ -99,16 +99,15 @@ class BlindingOrUnblindingResult(metaclass=abc.ABCMeta):
     def error(self) -> str:
         ...
 
+    @property
     def ok(self) -> bool:
-        err = self.error()
-
-        if err is None:
-            return True
+        err = self.error
 
         assert isinstance(err, str)
-        assert bool(err)
+        if bool(err):
+            return False
 
-        return False
+        return True
 
 
 class BlindingOrUnblindingFailure(BlindingOrUnblindingResult):

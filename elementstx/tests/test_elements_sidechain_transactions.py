@@ -404,6 +404,7 @@ class Test_Elements_CTransaction(ElementsTestSetupBase, unittest.TestCase):
             _rand_func=rand_func
         )
 
+        self.assertTrue(blind_result.ok)
         self.assertFalse(blind_result.error)
 
         if all(_k is None for _k in blind_issuance_asset_keys):
@@ -417,6 +418,7 @@ class Test_Elements_CTransaction(ElementsTestSetupBase, unittest.TestCase):
                 auxiliary_generators=asset_commitments,
                 _rand_func=rand_func
             )
+            self.assertTrue(blind_result2.ok)
             self.assertFalse(blind_result2.error)
             self.assertEqual(blind_result, blind_result2)
             self.assertEqual(tx_to_blind.serialize(), tx_to_blind2.serialize())
@@ -454,6 +456,7 @@ class Test_Elements_CTransaction(ElementsTestSetupBase, unittest.TestCase):
                     blinding_key=blinding_key,
                     rangeproof=blinded_tx.wit.vtxoutwit[n].rangeproof)
 
+                self.assertTrue(unblind_result.ok)
                 self.assertFalse(unblind_result.error)
                 self.assertEqual(uvout.nValue.to_amount(), unblind_result.amount)
                 self.assertEqual(uvout.nAsset.to_asset().data, unblind_result.asset.data)
