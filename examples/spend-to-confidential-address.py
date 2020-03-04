@@ -87,7 +87,7 @@ if __name__ == '__main__':
     spk = CScript([0, Hash160(key.pub)]).to_p2sh_scriptPubKey()
     src_addr = P2SHCoinAddress.from_scriptPubKey(spk)
 
-    sys.stderr.write('\nSearching for ouptut with address {}\n'.format(src_addr))
+    sys.stderr.write('\nSearching for ouptut with address {}\n'.format(str(src_addr)))
 
     utxo = None
     fee_asset = None

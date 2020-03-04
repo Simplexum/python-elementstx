@@ -484,7 +484,7 @@ class CElementsTxInWitness(ReprOrStrMixin, CTxInWitness, CoreElementsClass):
             bytes_repr(self.inflationKeysRangeproof), strfn(self.pegin_witness))
 
 
-class CElementsMutableTxInWitness(CElementsTxInWitness,  # type: ignore
+class CElementsMutableTxInWitness(CElementsTxInWitness,
                                   CMutableTxInWitness,
                                   mutable_of=CElementsTxInWitness):
     __slots__: List[str] = []
@@ -665,7 +665,7 @@ class CElementsTxWitness(ReprOrStrMixin, CTxWitness, CoreElementsClass):
             ','.join(strfn(w) for w in self.vtxoutwit))
 
 
-class CElementsMutableTxWitness(CElementsTxWitness,  # type: ignore
+class CElementsMutableTxWitness(CElementsTxWitness,
                                 CMutableTxWitness,
                                 mutable_of=CElementsTxWitness):
     __slots__: List[str] = []
@@ -843,13 +843,13 @@ class CElementsTxIn(ReprOrStrMixin, CTxIn, CoreElementsClass):
         return cls.from_instance(txin)
 
 
-class CElementsMutableTxIn(CElementsTxIn, CMutableTxIn,  # type: ignore
+class CElementsMutableTxIn(CElementsTxIn, CMutableTxIn,
                            mutable_of=CElementsTxIn):
     """A mutable Elements CTxIn"""
     __slots__: List[str] = []
 
     prevout: WriteableField[CElementsMutableOutPoint]  # type: ignore
-    scriptSig: WriteableField[CElementsScript]
+    scriptSig: WriteableField[CElementsScript]  # type: ignore
     nSequence: WriteableField[int]
     assetIssuance: WriteableField[CAssetIssuance]
     is_pegin: WriteableField[bool]
@@ -957,12 +957,12 @@ class CElementsTxOut(ReprOrStrMixin, CTxOut, CoreElementsClass):
         return cls.from_instance(txout)
 
 
-class CElementsMutableTxOut(CElementsTxOut, CMutableTxOut,  # type: ignore
+class CElementsMutableTxOut(CElementsTxOut, CMutableTxOut,
                             mutable_of=CElementsTxOut):
     __slots__: List[str] = []
 
-    nValue: WriteableField[CConfidentialValue]
-    scriptPubKey: WriteableField[CElementsScript]
+    nValue: WriteableField[CConfidentialValue]  # type: ignore
+    scriptPubKey: WriteableField[CElementsScript]  # type: ignore
     nAsset: WriteableField[CConfidentialAsset]
     nNonce: WriteableField[CConfidentialNonce]
 
@@ -977,6 +977,9 @@ class CElementsTransaction(CTransaction, CoreElementsClass):
     vin: ReadOnlyField[Tuple[CElementsTxIn]]  # type: ignore
     vout: ReadOnlyField[Tuple[CElementsTxOut]]  # type: ignore
     wit: ReadOnlyField[CElementsTxWitness]  # type: ignore
+
+    to_mutable: Callable[['CElementsTransaction'], 'CElementsMutableTransaction']
+    to_immutable: Callable[['CElementsTransaction'], 'CElementsTransaction']
 
     @classmethod
     def stream_deserialize(cls: Type[T_CElementsTransaction], f: BytesIO,
@@ -1049,14 +1052,8 @@ class CElementsTransaction(CTransaction, CoreElementsClass):
 
         return numIssuances
 
-    def to_mutable(self) -> 'CElementsMutableTransaction':
-        return cast('CElementsMutableTransaction', super().to_mutable())
 
-    def to_immutable(self) -> 'CElementsTransaction':
-        return cast('CElementsTransaction', super().to_immutable())
-
-
-class CElementsMutableTransaction(CElementsTransaction,  # type: ignore
+class CElementsMutableTransaction(CElementsTransaction,
                                   CMutableTransaction,
                                   mutable_of=CElementsTransaction):
 
