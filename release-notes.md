@@ -1,3 +1,10 @@
+## v0.1.3
+
+* Fix `BlindingOrUnblindingResult.ok`: it must be a property, but @property
+  decorator was missing. This could result in `unblinding_result.ok` check
+  to incorrectly pass in the code that uses the library. This might lead
+  to serious bugs, and thus the new version of the library is released with
+  the fix.
 
 ## v0.1.2
 
