@@ -95,10 +95,7 @@ def RawElementsSignatureHash(
             if vin.assetIssuance.is_null():
                 serialize_issuance += b'\x00'
             else:
-                f = BytesIO()
-                BytesSerializer.stream_serialize(
-                    vin.assetIssuance.serialize(), f)
-                serialize_issuance += bytes(f.getbuffer())
+                serialize_issuance += vin.assetIssuance.serialize()
         hashPrevouts = Hash(serialize_prevouts)
         hashIssuance = Hash(serialize_issuance)
 
@@ -127,8 +124,7 @@ def RawElementsSignatureHash(
     f.write(amount.commitment)
     f.write(struct.pack("<I", txTo.vin[inIdx].nSequence))
     if not txTo.vin[inIdx].assetIssuance.is_null():
-        BytesSerializer.stream_serialize(
-            txTo.vin[inIdx].assetIssuance.serialize(), f)
+        txTo.vin[inIdx].assetIssuance.stream_serialize(f)
     f.write(hashOutputs)
     f.write(struct.pack("<i", txTo.nLockTime))
     f.write(struct.pack("<i", hashtype))
