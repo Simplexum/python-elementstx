@@ -188,7 +188,7 @@ class CoreElementsClass(CoreCoinClass, metaclass=CoreElementsClassDispatcher):
 
 class CoreElementsParams(CoreCoinParams, CoreElementsClass):
     CT_EXPONENT = 0
-    CT_BITS = 32
+    CT_BITS = 52
 
 
 class WitnessSerializationError(SerializationError):
@@ -1728,12 +1728,8 @@ def generate_rangeproof(in_blinds: List[Uint256], nonce: Uint256,
     # Compose sidechannel message to convey asset info (ID and asset blinds)
     assetsMessage = asset.data + assetblind.data
 
-    try:
-        ct_exponent = min(max(CoreCoinParams.CT_EXPONENT, -1), 18)
-        ct_bits = min(max(CoreCoinParams.CT_BITS, 1), 51)
-    except AttributeError:
-        raise TypeError(
-            'current core params params must define CT_EXPONENT and CT_BITS')
+    ct_exponent = CoreCoinParams.CT_EXPONENT
+    ct_bits = CoreCoinParams.CT_BITS
 
     # Sign rangeproof
     # If min_value is 0, scriptPubKey must be unspendable
