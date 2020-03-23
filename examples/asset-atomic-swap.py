@@ -48,7 +48,7 @@ from bitcointx.core.script import (
 from bitcointx.core.key import CPubKey
 from bitcointx.wallet import (
     CCoinAddress, CCoinKey,
-    P2PKHCoinAddress, P2SHCoinAddress
+    P2PKHCoinAddress, P2SHCoinAddress, P2WPKHCoinAddress
 )
 from elementstx.core import (
     CAsset, CConfidentialValue, CConfidentialAsset,
@@ -866,7 +866,8 @@ def sign_input(tx, input_index, utxo):
     script_for_sighash = CScript([OP_DUP, OP_HASH160, Hash160(key.pub),
                                   OP_EQUALVERIFY, OP_CHECKSIG])
 
-    assert isinstance(src_addr, (P2PKHCoinAddress, P2SHCoinAddress)),\
+    assert isinstance(src_addr, (P2PKHCoinAddress, P2SHCoinAddress,
+                                 P2WPKHCoinAddress)),\
         'only p2pkh and p2sh_p2wpkh addresses are supported'
 
     if isinstance(src_addr, P2PKHCoinAddress):
@@ -888,6 +889,11 @@ def sign_input(tx, input_index, utxo):
     if isinstance(src_addr, P2PKHCoinAddress):
         tx.vin[input_index].scriptSig = CScript([CScript(sig),
                                                  CScript(key.pub)])
+        scriptpubkey = src_addr.to_scriptPubKey()
+    elif isinstance(src_addr, P2WPKHCoinAddress):
+        tx.vin[input_index].scriptSig = CScript()
+        tx.wit.vtxinwit[input_index] = CTxInWitness(
+            CScriptWitness([CScript(sig), CScript(key.pub)]))
         scriptpubkey = src_addr.to_scriptPubKey()
     else:
         # Assume that this is p2sh-wrapped p2wpkh address
