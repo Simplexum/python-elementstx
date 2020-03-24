@@ -1,3 +1,8 @@
+## v0.1.4.dev0
+
+* set `CT_BITS` to 52 (sync with Elements Core, PR#834)
+* Fix sighash calculation when transaction contains asset issuances
+
 ## v0.1.3
 
 * Fix `BlindingOrUnblindingResult.ok`: it must be a property, but @property
