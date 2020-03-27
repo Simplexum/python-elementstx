@@ -868,7 +868,7 @@ def sign_input(tx, input_index, utxo):
 
     assert isinstance(src_addr, (P2PKHCoinAddress, P2SHCoinAddress,
                                  P2WPKHCoinAddress)),\
-        'only p2pkh and p2sh_p2wpkh addresses are supported'
+        'only p2pkh, p2wpkh and p2sh_p2wpkh addresses are supported'
 
     if isinstance(src_addr, P2PKHCoinAddress):
         sigversion = SIGVERSION_BASE
