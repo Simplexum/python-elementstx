@@ -391,6 +391,10 @@ class Test_Elements_CTransaction(ElementsTestSetupBase, unittest.TestCase):
             blind_issuance_token_keys=blind_issuance_token_keys,
             auxiliary_generators=asset_commitments,
 
+            # Test data was generated with these params
+            custom_ct_exponent=0,
+            custom_ct_bits=32,
+
             # IMPORTANT NOTE:
             # Specifying custom _rand_func is only required for testing.
             # Here we use it to supply deterministically generated
@@ -416,6 +420,7 @@ class Test_Elements_CTransaction(ElementsTestSetupBase, unittest.TestCase):
                 blind_issuance_asset_keys=blind_issuance_asset_keys,
                 blind_issuance_token_keys=blind_issuance_token_keys,
                 auxiliary_generators=asset_commitments,
+                custom_ct_exponent=0, custom_ct_bits=32,  # Test data was generated with these params
                 _rand_func=rand_func
             )
             self.assertTrue(blind_result2.ok)

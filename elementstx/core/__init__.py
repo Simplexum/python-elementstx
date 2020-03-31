@@ -1067,6 +1067,8 @@ class CElementsMutableTransaction(CElementsTransaction,
               blind_issuance_asset_keys: Sequence[CKeyBase] = (),
               blind_issuance_token_keys: Sequence[CKeyBase] = (),
               auxiliary_generators: Sequence[Union[bytes, bytearray]] = (),
+              custom_ct_exponent: Optional[int] = None,
+              custom_ct_bits: Optional[int] = None,
               _rand_func: Callable[[int], bytes] = os.urandom
               ) -> 'BlindingOrUnblindingResult':
 
@@ -1077,6 +1079,8 @@ class CElementsMutableTransaction(CElementsTransaction,
             blind_issuance_asset_keys=blind_issuance_asset_keys,
             blind_issuance_token_keys=blind_issuance_token_keys,
             auxiliary_generators=auxiliary_generators,
+            custom_ct_exponent=custom_ct_exponent,
+            custom_ct_bits=custom_ct_bits,
             _rand_func=_rand_func)
 
 
@@ -1086,6 +1090,8 @@ def blind_transaction(tx: CElementsMutableTransaction, *,
                       blind_issuance_asset_keys: Sequence[CKeyBase] = (),
                       blind_issuance_token_keys: Sequence[CKeyBase] = (),
                       auxiliary_generators: Sequence[Union[bytes, bytearray]] = (),
+                      custom_ct_exponent: Optional[int] = None,
+                      custom_ct_bits: Optional[int] = None,
                       _rand_func: Callable[[int], bytes] = os.urandom,
                       ) -> 'BlindingOrUnblindingResult':
 
@@ -1473,7 +1479,8 @@ def blind_transaction(tx: CElementsMutableTransaction, *,
 
                 # Generate rangeproof, no script committed for issuances
                 rangeproof = generate_rangeproof(
-                    blinds, nonce, amount, CElementsScript(), commit, gen, asset, assetblinds)
+                    blinds, nonce, amount, CElementsScript(), commit, gen, asset, assetblinds,
+                    custom_ct_exponent=custom_ct_exponent, custom_ct_bits=custom_ct_bits)
 
                 if nPseudo == 0:
                     txinwit.issuanceAmountRangeproof = rangeproof
@@ -1590,7 +1597,8 @@ def blind_transaction(tx: CElementsMutableTransaction, *,
 
             # Generate rangeproof
             txoutwit.rangeproof = generate_rangeproof(
-                blinds, nonce, amount, out.scriptPubKey, commit, gen, asset, assetblinds)
+                blinds, nonce, amount, out.scriptPubKey, commit, gen, asset, assetblinds,
+                custom_ct_exponent=custom_ct_exponent, custom_ct_bits=custom_ct_bits)
 
             # Create surjection proof for this output
             surjectionproof = generate_surjectionproof(
@@ -1694,7 +1702,10 @@ def generate_rangeproof(in_blinds: List[Uint256], nonce: Uint256,
                         amount: int,
                         scriptPubKey: CElementsScript,
                         commit: bytes, gen: bytes, asset: CAsset,
-                        in_assetblinds: List[Uint256]) -> bytes:
+                        in_assetblinds: List[Uint256],
+                        custom_ct_exponent: Optional[int] = None,
+                        custom_ct_bits: Optional[int] = None,
+                        ) -> bytes:
     # NOTE: This is better done with typing module,
     # available since python3.5. but that means we will have
     # to add a dependency for python 3.4.
@@ -1728,8 +1739,17 @@ def generate_rangeproof(in_blinds: List[Uint256], nonce: Uint256,
     # Compose sidechannel message to convey asset info (ID and asset blinds)
     assetsMessage = asset.data + assetblind.data
 
-    ct_exponent = CoreCoinParams.CT_EXPONENT
-    ct_bits = CoreCoinParams.CT_BITS
+    if custom_ct_exponent is not None:
+        ensure_isinstance(custom_ct_exponent, int, 'custom_ct_exponent')
+        ct_exponent = custom_ct_exponent
+    else:
+        ct_exponent = CoreCoinParams.CT_EXPONENT
+
+    if custom_ct_bits is not None:
+        ensure_isinstance(custom_ct_bits, int, 'custom_ct_bits')
+        ct_bits = custom_ct_bits
+    else:
+        ct_bits = CoreCoinParams.CT_BITS
 
     # Sign rangeproof
     # If min_value is 0, scriptPubKey must be unspendable
