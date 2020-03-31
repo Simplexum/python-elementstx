@@ -1109,12 +1109,12 @@ def blind_transaction(tx: CElementsMutableTransaction, *,
         raise ValueError('unexpected extra output_pubkeys')
     for i, p in enumerate(output_pubkeys):
         ensure_isinstance(p, CPubKey, f'pubkey {i} in output_pubkeys')
-    if not (len(tx.vin) + tx.num_issuances >= len(blind_issuance_asset_keys)):
+    if not (len(tx.vin) >= len(blind_issuance_asset_keys)):
         raise ValueError('unexpected extra blind_issuance_asset_keys')
     for i, k in enumerate(blind_issuance_asset_keys):
         if k:
             ensure_isinstance(k, CKeyBase, f'key {i} in blind_issuance_asset_keys')
-    if not(len(tx.vin) + tx.num_issuances >= len(blind_issuance_token_keys)):
+    if not(len(tx.vin) >= len(blind_issuance_token_keys)):
         raise ValueError('unexpected extra blind_issuance_token_keys')
     for i, k in enumerate(blind_issuance_token_keys):
         if k:
