@@ -13,6 +13,8 @@
 
 import unittest
 
+from typing import Iterable, Sequence, Type
+
 from collections import namedtuple
 
 from bitcointx import ChainParams, get_registered_chain_params
@@ -40,16 +42,18 @@ unconf_types = ('p2pkh', 'p2sh', 'p2wpkh', 'p2wsh')
 conf_types = ('conf_p2pkh', 'conf_p2sh', 'conf_p2wpkh', 'conf_p2wsh')
 
 # NOTE: mypy cannot do dynamic fields of named tuples
-AddressSamples = namedtuple('AddressSamples',  # type: ignore
-                            list(unconf_types+conf_types))
+AddressSamples = namedtuple(
+    'AddressSamples',
+    ('p2pkh', 'p2sh', 'p2wpkh', 'p2wsh',
+     'conf_p2pkh', 'conf_p2sh', 'conf_p2wpkh', 'conf_p2wsh'))
 
 
-def get_params_list():
+def get_params_list() -> Sequence[Type[ElementsParams]]:
     return [c for c in get_registered_chain_params()
             if issubclass(c, ElementsParams)]
 
 
-def get_unconfidential_address_samples(pub1, pub2):
+def get_unconfidential_address_samples(pub1: CPubKey, pub2: CPubKey) -> AddressSamples:
     return AddressSamples(
         p2pkh=P2PKHCoinAddress.from_pubkey(pub1),
         p2wpkh=P2WPKHCoinAddress.from_pubkey(pub1),
@@ -72,17 +76,19 @@ def get_unconfidential_address_samples(pub1, pub2):
 
 class Test_ElementsAddress(unittest.TestCase):
 
-    def test_address_implementations(self, paramclasses=None):
-        def test_confidenital(aclass, pub):
+    def test_address_implementations(
+        self, paramclasses: Iterable[ElementsParams] = ()
+    ) -> None:
+        def test_confidenital(aclass: type, pub: CPubKey) -> bool:
             if getattr(aclass, '_unconfidential_address_class', None):
-                ucaclass = aclass._unconfidential_address_class
+                ucaclass = aclass._unconfidential_address_class  # type: ignore
                 if getattr(ucaclass, 'from_pubkey', None):
                     a = ucaclass.from_pubkey(pub)
                 else:
                     a = ucaclass.from_redeemScript(
                         CScript(b'\xa9' + Hash160(pub) + b'\x87'))
 
-                ca = aclass.from_unconfidential(a, pub)
+                ca = aclass.from_unconfidential(a, pub)  # type: ignore
                 self.assertEqual(ca.blinding_pubkey, pub)
                 self.assertEqual(ca.to_unconfidential(), a)
                 ca2 = CCoinConfidentialAddress(str(ca))
@@ -96,7 +102,7 @@ class Test_ElementsAddress(unittest.TestCase):
             self, paramclasses=get_params_list(),
             extra_addr_testfunc=test_confidenital)
 
-    def test_get_output_size(self):
+    def test_get_output_size(self) -> None:
         pub1 = CPubKey(x('0378d430274f8c5ec1321338151e9f27f4c676a008bdf8638d07c0b6be9ab35c71'))
         pub2 = CPubKey(x('02546c76587482cd2468b76768da70c0166ecb2aa2eb1038624f4fedc138b042bc'))
         for chainparam in get_params_list():
@@ -121,7 +127,7 @@ class Test_ElementsAddress(unittest.TestCase):
                 self.assertEqual(smpl.conf_p2sh.get_output_size(), 32 + elements_confidential_size_extra)
                 self.assertEqual(smpl.conf_p2wsh.get_output_size(), 43 + elements_confidential_size_extra)
 
-    def test_from_to_unconfidential(self):  #noqa
+    def test_from_to_unconfidential(self) -> None:  #noqa
         pub1 = CPubKey(x('02546c76587482cd2468b76768da70c0166ecb2aa2eb1038624f4fedc138b042bc'))
         pub2 = CPubKey(x('0378d430274f8c5ec1321338151e9f27f4c676a008bdf8638d07c0b6be9ab35c71'))
         params_list = get_params_list()

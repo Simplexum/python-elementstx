@@ -18,6 +18,8 @@ import random
 import logging
 import unittest
 
+from typing import Sequence, Iterator, Tuple, List, Dict, Optional, Any, Type
+
 import bitcointx
 from bitcointx.core import (
     x, lx, b2lx, b2x, Uint256, coins_to_satoshi,
@@ -42,17 +44,21 @@ from elementstx.core import (
     CAsset, CConfidentialValue, CConfidentialAsset, CConfidentialNonce,
     calculate_asset, generate_asset_entropy, calculate_reissuance_token,
     CElementsTransaction, CElementsMutableTransaction,
-    BlindingInputDescriptor
+    CElementsTxWitness, CElementsMutableTxWitness,
+    CElementsMutableTxOut, CElementsTxInWitness, CElementsTxOutWitness,
+    CElementsMutableTxInWitness, CElementsMutableTxOutWitness,
+    BlindingInputDescriptor, BlindingSuccess, UnblindingSuccess
 )
 from elementstx.wallet import (
     P2PKHElementsAddress, P2SHElementsAddress
 )
 from elementstx.core.secp256k1 import secp256k1_has_zkp
+from elementstx.core.script import CElementsScript
 
 zkp_unavailable_warning_shown = False
 
 
-def warn_zkp_unavailable():
+def warn_zkp_unavailable() -> None:
     global zkp_unavailable_warning_shown
     if not zkp_unavailable_warning_shown:
         log = logging.getLogger("Test_Elements_CTransaction")
@@ -62,51 +68,51 @@ def warn_zkp_unavailable():
         zkp_unavailable_warning_shown = True
 
 
-def load_test_vectors(name):
+def load_test_vectors(name: str) -> Iterator[Tuple[Dict[str, Any], CElementsTransaction, bytes]]:
     with open(os.path.dirname(__file__) + '/data/' + name, 'r') as fd:
         for tx_decoded in json.load(fd):
             if isinstance(tx_decoded, str):
                 continue  # skip comment
             tx_bytes = x(tx_decoded['hex'])
             assert len(tx_bytes) == tx_decoded['size']
-            tx = CTransaction.deserialize(tx_bytes)
+            tx = CElementsTransaction.deserialize(tx_bytes)
             yield (tx_decoded, tx, tx_bytes)
 
 
 class ElementsTestSetupBase():
     @classmethod
-    def setUpClass(cls):
+    def setUpClass(cls) -> None:
         logging.basicConfig()
-        cls._prev_chain_params = bitcointx.get_current_chain_params()
+        cls._prev_chain_params = bitcointx.get_current_chain_params()  # type: ignore
         bitcointx.select_chain_params('elements')
 
     @classmethod
-    def tearDownClass(cls):
-        bitcointx.select_chain_params(cls._prev_chain_params)
+    def tearDownClass(cls) -> None:
+        bitcointx.select_chain_params(cls._prev_chain_params)  # type: ignore
 
 
 class Test_CTxIn(ElementsTestSetupBase, unittest.TestCase):
-    def test_is_final(self):
+    def test_is_final(self) -> None:
         self.assertTrue(CTxIn().is_final())
         self.assertTrue(CTxIn(nSequence=0xffffffff).is_final())
         self.assertFalse(CTxIn(nSequence=0).is_final())
 
-    def test_repr(self):
-        def T(txin, expected):
+    def test_repr(self) -> None:
+        def T(txin: CTxIn, expected: str) -> None:
             actual = repr(txin)
             self.assertEqual(actual, expected)
         T(CTxIn(),
           'CElementsTxIn(CElementsOutPoint(), CElementsScript([]), 0xffffffff, CAssetIssuance(), is_pegin=False)')
 
-    def test_immutable(self):
+    def test_immutable(self) -> None:
         """CTxIn shall not be mutable"""
         txin = CTxIn()
         with self.assertRaises(AttributeError):
-            txin.nSequence = 1
+            txin.nSequence = 1  # type: ignore
 
 
 class Test_CMutableTxIn(ElementsTestSetupBase, unittest.TestCase):
-    def test_GetHash(self):
+    def test_GetHash(self) -> None:
         """CMutableTxIn.GetHash() is not cached"""
         txin = CMutableTxIn()
 
@@ -115,8 +121,8 @@ class Test_CMutableTxIn(ElementsTestSetupBase, unittest.TestCase):
 
         self.assertNotEqual(h1, txin.GetHash())
 
-    def test_repr(self):
-        def T(txin, expected):
+    def test_repr(self) -> None:
+        def T(txin: CTxIn, expected: str) -> None:
             actual = repr(txin)
             self.assertEqual(actual, expected)
         T(CMutableTxIn(),
@@ -124,36 +130,36 @@ class Test_CMutableTxIn(ElementsTestSetupBase, unittest.TestCase):
 
 
 class Test_CTxOut(ElementsTestSetupBase, unittest.TestCase):
-    def test_repr(self):
-        def T(txout, expected):
+    def test_repr(self) -> None:
+        def T(txout: CTxOut, expected: str) -> None:
             actual = repr(txout)
             self.assertEqual(actual, expected)
         T(CTxOut(),
           "CElementsTxOut(CConfidentialValue(x('')), CElementsScript([]), CConfidentialAsset(x('')), CConfidentialNonce(x('')))")
 
-    def test_immutable(self):
+    def test_immutable(self) -> None:
         """CTxIn shall not be mutable"""
         txout = CTxOut()
         with self.assertRaises(AttributeError):
-            txout.nValue = None
+            txout.nValue = None  # type: ignore
 
 
 class Test_CMutableTxOut(ElementsTestSetupBase, unittest.TestCase):
-    def test_repr(self):
-        def T(txout, expected):
+    def test_repr(self) -> None:
+        def T(txout: CTxOut, expected: str) -> None:
             actual = repr(txout)
             self.assertEqual(actual, expected)
         T(CMutableTxOut(),
           "CElementsMutableTxOut(CConfidentialValue(x('')), CElementsScript([]), CConfidentialAsset(x('')), CConfidentialNonce(x('')))")
 
-    def test_mutable(self):
+    def test_mutable(self) -> None:
         """CTxIn shall be mutable"""
         txout = CMutableTxOut()
         txout.nValue = None
 
 
 class Test_Elements_CTransaction(ElementsTestSetupBase, unittest.TestCase):
-    def test_is_coinbase(self):
+    def test_is_coinbase(self) -> None:
         tx = CMutableTransaction()
         self.assertFalse(tx.is_coinbase())
 
@@ -165,36 +171,38 @@ class Test_Elements_CTransaction(ElementsTestSetupBase, unittest.TestCase):
         tx.vin[0].prevout.n = 0
         self.assertFalse(tx.is_coinbase())
 
-        tx.vin[0] = CTxIn()
-        tx.vin.append(CTxIn())
+        tx.vin[0] = CMutableTxIn()
+        tx.vin.append(CMutableTxIn())
         self.assertFalse(tx.is_coinbase())
 
-    def test_immutable(self):
+    def test_immutable(self) -> None:
         tx = CTransaction()
         self.assertFalse(tx.is_coinbase())
 
         # check that immutable property holds
         with self.assertRaises(AttributeError):
-            tx.nVersion = 2
+            tx.nVersion = 2  # type: ignore
         with self.assertRaises(AttributeError):
-            tx.vin.append(CTxIn())
+            tx.vin.append(CTxIn())  # type: ignore
 
         mtx = tx.to_mutable()
         mtx.nVersion = 2
-        mtx.vin.append(CTxIn())
+        mtx.vin.append(CMutableTxIn())
 
         itx = tx.to_immutable()
 
         with self.assertRaises(AttributeError):
-            itx.nVersion = 2
+            itx.nVersion = 2  # type: ignore
         with self.assertRaises(AttributeError):
-            itx.vin.append(CTxIn())
+            itx.vin.append(CTxIn())  # type: ignore
 
-    def test_serialize_deserialize(self):
+    def test_serialize_deserialize(self) -> None:
         for tx_decoded, tx, tx_bytes in load_test_vectors('elements_txs.json'):
             self.check_serialize_deserialize(tx, tx_bytes, tx_decoded)
 
-    def check_serialize_deserialize(self, tx, tx_bytes, tx_decoded):
+    def check_serialize_deserialize(
+        self, tx: CElementsTransaction, tx_bytes: bytes, tx_decoded: Dict[str, Any]
+    ) -> None:
             self.assertEqual(tx_bytes, tx.serialize())
             self.assertEqual(tx_bytes, CTransaction.deserialize(tx.serialize()).serialize())
             self.assertEqual(tx_bytes, tx.to_mutable().to_immutable().serialize())
@@ -220,7 +228,9 @@ class Test_Elements_CTransaction(ElementsTestSetupBase, unittest.TestCase):
                     if 'pegout_type' in spk:
                         self.assertEqual(spk['type'], 'nulldata')
                         self.assertTrue(tx.vout[n].scriptPubKey.is_pegout())
-                        genesis_hash, pegout_scriptpubkey = tx.vout[n].scriptPubKey.get_pegout_data()
+                        pegout_data = tx.vout[n].scriptPubKey.get_pegout_data()
+                        assert pegout_data is not None
+                        genesis_hash, pegout_scriptpubkey = pegout_data
                         if spk['pegout_type'] != 'nonstandard':
                             assert spk['pegout_type'] in ('pubkeyhash', 'scripthash')
                             addr = CCoinAddress.from_scriptPubKey(pegout_scriptpubkey)
@@ -245,7 +255,7 @@ class Test_Elements_CTransaction(ElementsTestSetupBase, unittest.TestCase):
                     else:
                         rpinfo = tx.wit.vtxoutwit[n].get_rangeproof_info()
                     if 'value-minimum' in vout:
-                        self.assertIsNotNone(rpinfo)
+                        assert rpinfo is not None
                         self.assertEqual(vout['ct-exponent'], rpinfo.exp)
                         self.assertEqual(vout['ct-bits'], rpinfo.mantissa)
                         self.assertEqual(coins_to_satoshi(vout['value-minimum'], check_range=False),
@@ -265,8 +275,8 @@ class Test_Elements_CTransaction(ElementsTestSetupBase, unittest.TestCase):
                         self.assertEqual(coins_to_satoshi(vout['value']), tx.vout[n].nValue.to_amount())
 
             for n, vin in enumerate(tx_decoded['vin']):
-                if 'scripSig' in vin:
-                    self.assertEqual(x(vin['scriptSig']['hex'], tx.vin[n].scriptSig))
+                if 'scriptSig' in vin:
+                    self.assertEqual(x(vin['scriptSig']['hex']), tx.vin[n].scriptSig)
                 if 'txid' in vin:
                     self.assertEqual(vin['txid'], b2lx(tx.vin[n].prevout.hash))
                 if 'vout' in vin:
@@ -323,8 +333,11 @@ class Test_Elements_CTransaction(ElementsTestSetupBase, unittest.TestCase):
                         self.assertEqual(iss['tokenamountcommitment'],
                                          b2x(tx.vin[n].assetIssuance.nInflationKeys.commitment))
 
-    def check_blind(self, unblinded_tx, unblinded_tx_raw, blinded_tx, blinded_tx_raw, bundle,
-                    blinding_derivation_key, asset_commitments=()):
+    def check_blind(
+        self, unblinded_tx: CElementsTransaction, unblinded_tx_raw: bytes,
+        blinded_tx: CElementsTransaction, blinded_tx_raw: bytes, bundle: Dict[str, Any],
+        blinding_derivation_key: CKey, asset_commitments: Sequence[bytes] = ()
+    ) -> None:
         input_descriptors = []
         for utxo in bundle['vin_utxo']:
             amount = -1 if utxo['amount'] == -1 else coins_to_satoshi(utxo['amount'])
@@ -346,12 +359,12 @@ class Test_Elements_CTransaction(ElementsTestSetupBase, unittest.TestCase):
 
         tx_to_blind = unblinded_tx.to_mutable()
 
-        blind_issuance_asset_keys = []
-        blind_issuance_token_keys = []
+        blind_issuance_asset_keys: List[Optional[CKey]] = []
+        blind_issuance_token_keys: List[Optional[CKey]] = []
         for vin in blinded_tx.vin:
             issuance = vin.assetIssuance
             if not issuance.is_null():
-                issuance_blinding_script = CScript([OP_RETURN, vin.prevout.hash, vin.prevout.n])
+                issuance_blinding_script = CElementsScript([OP_RETURN, vin.prevout.hash, vin.prevout.n])
                 blind_issuance_key = issuance_blinding_script.derive_blinding_key(blinding_derivation_key)
                 if issuance.nAmount.is_commitment():
                     blind_issuance_asset_keys.append(blind_issuance_key)
@@ -374,7 +387,7 @@ class Test_Elements_CTransaction(ElementsTestSetupBase, unittest.TestCase):
         #  is intended only for testing code, not for production)
         random.seed(bundle['rand_seed'])
 
-        def rand_func(n):
+        def rand_func(n: int) -> bytes:
             return bytes([random.randint(0, 255) for _ in range(n)])
 
         # Auxiliary generators will be be non-empty only for the case
@@ -410,6 +423,7 @@ class Test_Elements_CTransaction(ElementsTestSetupBase, unittest.TestCase):
 
         self.assertTrue(blind_result.ok)
         self.assertFalse(blind_result.error)
+        assert isinstance(blind_result, BlindingSuccess)
 
         if all(_k is None for _k in blind_issuance_asset_keys):
             random.seed(bundle['rand_seed'])
@@ -432,8 +446,11 @@ class Test_Elements_CTransaction(ElementsTestSetupBase, unittest.TestCase):
         self.assertNotEqual(unblinded_tx_raw, tx_to_blind.serialize())
         self.assertEqual(blinded_tx_raw, tx_to_blind.serialize())
 
-    def check_unblind(self, unblinded_tx, unblinded_tx_raw, blinded_tx, blinded_tx_raw,
-                      bundle, blinding_derivation_key):
+    def check_unblind(
+        self, unblinded_tx: CElementsTransaction, unblinded_tx_raw: bytes,
+        blinded_tx: CElementsTransaction, blinded_tx_raw: bytes,
+        bundle: Dict[str, Any], blinding_derivation_key: CKey
+    ) -> None:
         for n, bvout in enumerate(blinded_tx.vout):
             uvout = unblinded_tx.vout[n]
 
@@ -463,6 +480,8 @@ class Test_Elements_CTransaction(ElementsTestSetupBase, unittest.TestCase):
 
                 self.assertTrue(unblind_result.ok)
                 self.assertFalse(unblind_result.error)
+                assert isinstance(unblind_result, UnblindingSuccess)
+
                 self.assertEqual(uvout.nValue.to_amount(), unblind_result.amount)
                 self.assertEqual(uvout.nAsset.to_asset().data, unblind_result.asset.data)
                 descr = unblind_result.get_descriptor()
@@ -484,7 +503,10 @@ class Test_Elements_CTransaction(ElementsTestSetupBase, unittest.TestCase):
                     self.assertEqual(ub_info['asset_blinding_factor'],
                                      unblind_result.asset_blinding_factor.to_hex())
 
-    def check_sign(self, blinded_tx, signed_tx, bundle):
+    def check_sign(
+        self, blinded_tx: CTransaction, signed_tx: CTransaction,
+        bundle: Dict[str, Any]
+    ) -> None:
         tx_to_sign = blinded_tx.to_mutable()
         for n, vin in enumerate(tx_to_sign.vin):
             utxo = bundle['vin_utxo'][n]
@@ -504,10 +526,10 @@ class Test_Elements_CTransaction(ElementsTestSetupBase, unittest.TestCase):
                 tx_to_sign.vin[n].scriptSig = CScript([CScript(sig), CScript(privkey.pub)])
             else:
                 pk_list = [CCoinKey(pk) for pk in utxo['privkey_list']]
-                redeem_script = [utxo['num_p2sh_participants']]
-                redeem_script.extend([pk.pub for pk in pk_list])
-                redeem_script.extend([len(pk_list), OP_CHECKMULTISIG])
-                redeem_script = CScript(redeem_script)
+                redeem_script_data = [utxo['num_p2sh_participants']]
+                redeem_script_data.extend([pk.pub for pk in pk_list])
+                redeem_script_data.extend([len(pk_list), OP_CHECKMULTISIG])
+                redeem_script = CScript(redeem_script_data)
                 assert isinstance(a, P2SHCoinAddress),\
                     "only P2SH is supported for multi-sig."
                 assert scriptPubKey == redeem_script.to_p2sh_scriptPubKey()
@@ -516,13 +538,13 @@ class Test_Elements_CTransaction(ElementsTestSetupBase, unittest.TestCase):
                 sighash = SignatureHash(redeem_script, tx_to_sign, n, SIGHASH_ALL,
                                         amount=amount, sigversion=SIGVERSION_BASE)
                 sigs = [pk.sign(sighash) + bytes([SIGHASH_ALL]) for pk in pk_list]
-                tx_to_sign.vin[n].scriptSig = CScript([0] + sigs + [redeem_script])
+                tx_to_sign.vin[n].scriptSig = CScript([b''] + sigs + [redeem_script])
 
             VerifyScript(tx_to_sign.vin[n].scriptSig, scriptPubKey, tx_to_sign, n, amount=amount)
 
         self.assertEqual(tx_to_sign.serialize(), signed_tx.serialize())
 
-    def test_blind_unnblind_sign(self):
+    def test_blind_unnblind_sign(self) -> None:
         if not secp256k1_has_zkp:
             warn_zkp_unavailable()
             return
@@ -531,21 +553,21 @@ class Test_Elements_CTransaction(ElementsTestSetupBase, unittest.TestCase):
                   + '/data/elements_txs_blinding.json', 'r') as fd:
             for bundle in json.load(fd):
                 blinded_tx_raw = x(bundle['blinded']['hex'])
-                blinded_tx = CTransaction.deserialize(blinded_tx_raw)
+                blinded_tx = CElementsTransaction.deserialize(blinded_tx_raw)
                 self.assertEqual(blinded_tx.serialize(), blinded_tx_raw)
                 self.check_serialize_deserialize(blinded_tx, blinded_tx_raw, bundle['blinded'])
                 unblinded_tx_raw = x(bundle['unblinded']['hex'])
-                unblinded_tx = CTransaction.deserialize(unblinded_tx_raw)
+                unblinded_tx = CElementsTransaction.deserialize(unblinded_tx_raw)
 
                 self.assertEqual(unblinded_tx.serialize(), unblinded_tx_raw)
                 self.check_serialize_deserialize(unblinded_tx, unblinded_tx_raw, bundle['unblinded'])
                 signed_tx_raw = x(bundle['signed_hex'])
-                signed_tx = CTransaction.deserialize(signed_tx_raw)
+                signed_tx = CElementsTransaction.deserialize(signed_tx_raw)
                 self.assertEqual(signed_tx.serialize(), signed_tx_raw)
                 blinding_derivation_key = CKey(lx(bundle['blinding_derivation_key']))
 
                 # ensure that str and repr works
-                for f in (str, repr):
+                for f in (lambda v: str(v), repr):
                     f(unblinded_tx)
                     f(blinded_tx)
                     f(signed_tx)
@@ -554,10 +576,10 @@ class Test_Elements_CTransaction(ElementsTestSetupBase, unittest.TestCase):
                     assert len(blinded_tx.vout) == len(unblinded_tx.vout) + 1
                     assert blinded_tx.vout[-1].scriptPubKey == b'\x6a',\
                         "expected last output of blinded tx to be OP_RETURN"
-                    scriptPubKey = CScript([OP_RETURN])
+                    scriptPubKey = CElementsScript([OP_RETURN])
                     unblinded_tx = unblinded_tx.to_mutable()
                     unblinded_tx.vout.append(
-                        CMutableTxOut(
+                        CElementsMutableTxOut(
                             nValue=CConfidentialValue(0),
                             nAsset=CConfidentialAsset(unblinded_tx.vout[-1].nAsset.to_asset()),
                             nNonce=CConfidentialNonce(
@@ -576,7 +598,7 @@ class Test_Elements_CTransaction(ElementsTestSetupBase, unittest.TestCase):
 
                 self.check_sign(blinded_tx, signed_tx, bundle)
 
-    def test_split_blinding_multi_sign(self):
+    def test_split_blinding_multi_sign(self) -> None:
         if not secp256k1_has_zkp:
             warn_zkp_unavailable()
             return
@@ -593,17 +615,18 @@ class Test_Elements_CTransaction(ElementsTestSetupBase, unittest.TestCase):
             for txlabel in ('tx1', 'tx2'):
                 bundle = split_blind_txdata[txlabel]
                 blinded_tx_raw = x(bundle['blinded']['hex'])
-                blinded_tx = CTransaction.deserialize(blinded_tx_raw)
+                blinded_tx = CElementsTransaction.deserialize(blinded_tx_raw)
                 self.assertEqual(blinded_tx.serialize(), blinded_tx_raw)
                 self.check_serialize_deserialize(blinded_tx, blinded_tx_raw, bundle['blinded'])
                 unblinded_tx_raw = x(bundle['unblinded']['hex'])
-                unblinded_tx = CTransaction.deserialize(unblinded_tx_raw)
+                unblinded_tx = CElementsTransaction.deserialize(unblinded_tx_raw)
 
                 self.assertEqual(unblinded_tx.serialize(), unblinded_tx_raw)
                 self.check_serialize_deserialize(unblinded_tx, unblinded_tx_raw, bundle['unblinded'])
+                signed_tx: Optional[CElementsTransaction]
                 if 'signed_hex' in bundle:
                     signed_tx_raw = x(bundle['signed_hex'])
-                    signed_tx = CTransaction.deserialize(signed_tx_raw)
+                    signed_tx = CElementsTransaction.deserialize(signed_tx_raw)
                     self.assertEqual(signed_tx.serialize(), signed_tx_raw)
                 else:
                     signed_tx = None
@@ -625,8 +648,8 @@ class Test_Elements_CTransaction(ElementsTestSetupBase, unittest.TestCase):
     # We need to do the same mutable/immutable tests as with bitcoin transactions,
     # because the implementation for the transaction parts are different,
     # there are extra fields used, etc.
-    def test_mutable_tx_creation_with_immutable_parts_specified(self):
-        tx = CMutableTransaction(
+    def test_mutable_tx_creation_with_immutable_parts_specified(self) -> None:
+        tx = CElementsMutableTransaction(
             vin=[CTxIn(prevout=COutPoint(hash=b'a'*32, n=0))],
             vout=[CTxOut()],
             witness=CTxWitness(vtxinwit=[CTxInWitness()],
@@ -634,7 +657,7 @@ class Test_Elements_CTransaction(ElementsTestSetupBase, unittest.TestCase):
 
         self.assertIsInstance(tx, CElementsMutableTransaction)
 
-        def check_mutable_parts(tx):
+        def check_mutable_parts(tx: CElementsMutableTransaction) -> None:
             self.assertTrue(tx.vin[0].is_mutable())
             self.assertTrue(tx.vin[0].prevout.is_mutable())
             self.assertTrue(tx.vout[0].is_mutable())
@@ -646,7 +669,7 @@ class Test_Elements_CTransaction(ElementsTestSetupBase, unittest.TestCase):
 
         # Test that if we deserialize with CMutableTransaction,
         # all the parts are mutable
-        tx = CMutableTransaction.deserialize(tx.serialize())
+        tx = CElementsMutableTransaction.deserialize(tx.serialize())
         check_mutable_parts(tx)
 
         # Test some parts separately, because when created via
@@ -656,12 +679,12 @@ class Test_Elements_CTransaction(ElementsTestSetupBase, unittest.TestCase):
         txin = CMutableTxIn(prevout=COutPoint(hash=b'a'*32, n=0))
         self.assertTrue(txin.prevout.is_mutable())
 
-        wit = CMutableTxWitness((CTxInWitness(),), (CTxOutWitness(),))
+        wit = CElementsMutableTxWitness((CElementsTxInWitness(),), (CElementsTxOutWitness(),))
         self.assertTrue(wit.vtxinwit[0].is_mutable())
         self.assertTrue(wit.vtxoutwit[0].is_mutable())
 
-    def test_immutable_tx_creation_with_mutable_parts_specified(self):
-        tx = CTransaction(
+    def test_immutable_tx_creation_with_mutable_parts_specified(self) -> None:
+        tx = CElementsTransaction(
             vin=[CMutableTxIn(prevout=COutPoint(hash=b'a'*32, n=0))],
             vout=[CMutableTxOut()],
             witness=CMutableTxWitness(
@@ -670,7 +693,7 @@ class Test_Elements_CTransaction(ElementsTestSetupBase, unittest.TestCase):
 
         self.assertIsInstance(tx, CElementsTransaction)
 
-        def check_immutable_parts(tx):
+        def check_immutable_parts(tx: CElementsTransaction) -> None:
             self.assertTrue(not tx.vin[0].is_mutable())
             self.assertTrue(not tx.vin[0].prevout.is_mutable())
             self.assertTrue(not tx.vout[0].is_mutable())
@@ -682,7 +705,7 @@ class Test_Elements_CTransaction(ElementsTestSetupBase, unittest.TestCase):
 
         # Test that if we deserialize with CTransaction,
         # all the parts are immutable
-        tx = CTransaction.deserialize(tx.serialize())
+        tx = CElementsTransaction.deserialize(tx.serialize())
         check_immutable_parts(tx)
 
         # Test some parts separately, because when created via
@@ -692,6 +715,6 @@ class Test_Elements_CTransaction(ElementsTestSetupBase, unittest.TestCase):
         txin = CTxIn(prevout=CMutableOutPoint(hash=b'a'*32, n=0))
         self.assertTrue(not txin.prevout.is_mutable())
 
-        wit = CTxWitness((CMutableTxInWitness(),), (CMutableTxOutWitness(),))
+        wit = CElementsTxWitness((CElementsMutableTxInWitness(),), (CElementsMutableTxOutWitness(),))
         self.assertTrue(not wit.vtxinwit[0].is_mutable())
         self.assertTrue(not wit.vtxoutwit[0].is_mutable())

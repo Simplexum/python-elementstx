@@ -7,5 +7,5 @@ set -ex
 [ "${_MY_DIR}/run_mypy.sh" -ef "${0}" ]
 cd "${_MY_DIR}"
 
-mypy --strict `find ./elementstx -path ./elementstx/tests -prune -o -name "*.py" -print|sort`
-mypy `find ./elementstx/tests ./examples -name "*.py" -print|sort`
+mypy --strict ./elementstx
+mypy ./examples

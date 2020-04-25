@@ -29,21 +29,24 @@ from elementstx.wallet import (
 class Test_ConfidentialAddress(unittest.TestCase):
 
     @classmethod
-    def setUpClass(cls):
-        cls._prev_chain_params = bitcointx.get_current_chain_params()
+    def setUpClass(cls) -> None:
+        cls._prev_chain_params = bitcointx.get_current_chain_params()  # type: ignore
         bitcointx.select_chain_params('elements')
 
     @classmethod
-    def tearDownClass(cls):
-        bitcointx.select_chain_params(cls._prev_chain_params)
+    def tearDownClass(cls) -> None:
+        bitcointx.select_chain_params(cls._prev_chain_params)  # type: ignore
 
-    def test(self):
+    def test(self) -> None:
 
-        def T(confidential_addr, expected_bytes, unconfidential_addr,
-              expected_blinding_pubkey, expected_class):
+        def T(confidential_addr: str,
+              expected_bytes: bytes, unconfidential_addr: CCoinAddress,
+              expected_blinding_pubkey: bytes, expected_class: type
+              ) -> None:
             a = CCoinAddress(confidential_addr)
+            assert isinstance(a, CCoinConfidentialAddress)
             self.assertIsInstance(a, expected_class)
-            self.assertEqual(a.to_bytes(), expected_bytes)
+            self.assertEqual(bytes(a), expected_bytes)
             self.assertEqual(unconfidential_addr, a.to_unconfidential())
             self.assertEqual(
                 confidential_addr,

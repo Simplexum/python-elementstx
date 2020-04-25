@@ -146,7 +146,24 @@ class CElementsScript(CScript, ScriptElementsClass):
             return True
         return super(CElementsScript, self).is_unspendable()
 
-    # The signature cannot be compatible with raw_sighash,
+    # The signature cannot be compatible with CScript's sighash,
+    # because the amount is a confidential value, that cannot be
+    # a subclass of int (the type of amount in CBitcoinScript)
+    def sighash(self,  # type: ignore
+                txTo: 'elementstx.core.CElementsTransaction', inIdx: int,
+                hashtype: SIGHASH_Type,
+                amount: Optional['elementstx.core.CConfidentialValue'] = None,
+                sigversion: SIGVERSION_Type = SIGVERSION_BASE) -> bytes:
+
+        hashtype = SIGHASH_Type(hashtype)
+
+        (h, err) = self.raw_sighash(txTo, inIdx, hashtype, amount=amount,
+                                    sigversion=sigversion)
+        if err is not None:
+            raise ValueError(err)
+        return h
+
+    # The signature cannot be compatible with CSript's raw_sighash,
     # because the amount is a confidential value, that cannot be
     # a subclass of int (the type of amount in CBitcoinScript)
     def raw_sighash(self,  # type: ignore

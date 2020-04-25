@@ -141,6 +141,10 @@ class BlindingSuccess(BlindingOrUnblindingSuccess,
                                   'asset_blinding_factors'))):
     __slots__: List[str] = []
 
+    num_successfully_blinded: int
+    blinding_factors: Sequence[Uint256]
+    asset_blinding_factors: Sequence[Uint256]
+
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         # For newer python versions, type annotations can be used to
         # enforce correct types.
@@ -384,11 +388,17 @@ class CElementsOutPoint(COutPoint, CoreElementsClass):
     """Elements COutPoint"""
     __slots__: List[str] = []
 
+    to_mutable: Callable[['CElementsOutPoint'], 'CElementsMutableOutPoint']
+    to_immutable: Callable[['CElementsOutPoint'], 'CElementsOutPoint']
+
 
 class CElementsMutableOutPoint(CElementsOutPoint, CMutableOutPoint,
                                mutable_of=CElementsOutPoint):
     """A mutable Elements COutPoint"""
     __slots__: List[str] = []
+
+    to_mutable: Callable[['CElementsMutableOutPoint'], 'CElementsMutableOutPoint']
+    to_immutable: Callable[['CElementsMutableOutPoint'], 'CElementsOutPoint']
 
 
 T_CElementsTxInWitness = TypeVar('T_CElementsTxInWitness',
@@ -404,6 +414,9 @@ class CElementsTxInWitness(ReprOrStrMixin, CTxInWitness, CoreElementsClass):
     issuanceAmountRangeproof: ReadOnlyField[CElementsScript]
     inflationKeysRangeproof: ReadOnlyField[CElementsScript]
     pegin_witness: ReadOnlyField[CScriptWitness]
+
+    to_mutable: Callable[['CElementsTxInWitness'], 'CElementsMutableTxInWitness']
+    to_immutable: Callable[['CElementsTxInWitness'], 'CElementsTxInWitness']
 
     # put scriptWitness first for CTxInWitness(script_witness) to work
     # the same as with CBitcoinTxInWitness.
@@ -494,6 +507,9 @@ class CElementsMutableTxInWitness(CElementsTxInWitness,
     inflationKeysRangeproof: WriteableField[CElementsScript]
     pegin_witness: WriteableField[CScriptWitness]
 
+    to_mutable: Callable[['CElementsMutableTxInWitness'], 'CElementsMutableTxInWitness']
+    to_immutable: Callable[['CElementsMutableTxInWitness'], 'CElementsTxInWitness']
+
 
 T_CElementsTxOutWitness = TypeVar('T_CElementsTxOutWitness',
                                   bound='CElementsTxOutWitness')
@@ -505,6 +521,9 @@ class CElementsTxOutWitness(CTxOutWitness, CoreElementsClass):
 
     surjectionproof: ReadOnlyField[bytes]
     rangeproof: ReadOnlyField[bytes]
+
+    to_mutable: Callable[['CElementsTxOutWitness'], 'CElementsMutableTxOutWitness']
+    to_immutable: Callable[['CElementsTxOutWitness'], 'CElementsTxOutWitness']
 
     def __init__(self, surjectionproof: Union[bytes, bytearray] = b'',
                  rangeproof: Union[bytes, bytearray] = b''):
@@ -580,6 +599,9 @@ class CElementsMutableTxOutWitness(CElementsTxOutWitness, CMutableTxOutWitness,
     surjectionproof: WriteableField[bytes]
     rangeproof: WriteableField[bytes]
 
+    to_mutable: Callable[['CElementsMutableTxOutWitness'], 'CElementsMutableTxOutWitness']
+    to_immutable: Callable[['CElementsMutableTxOutWitness'], 'CElementsTxOutWitness']
+
 
 T_CElementsTxWitness = TypeVar('T_CElementsTxWitness',
                                bound='CElementsTxWitness')
@@ -591,6 +613,9 @@ class CElementsTxWitness(ReprOrStrMixin, CTxWitness, CoreElementsClass):
 
     vtxinwit: ReadOnlyField[Tuple[CElementsTxInWitness]]  # type: ignore
     vtxoutwit: ReadOnlyField[Tuple[CElementsTxOutWitness]]
+
+    to_mutable: Callable[['CElementsTxWitness'], 'CElementsMutableTxWitness']
+    to_immutable: Callable[['CElementsTxWitness'], 'CElementsTxWitness']
 
     def __init__(self, vtxinwit: Iterable[CElementsTxInWitness] = (),
                  vtxoutwit: Iterable[CElementsTxOutWitness] = ()):
@@ -673,6 +698,9 @@ class CElementsMutableTxWitness(CElementsTxWitness,
     vtxinwit: WriteableField[List[CElementsMutableTxInWitness]]  # type: ignore
     vtxoutwit: WriteableField[List[CElementsMutableTxOutWitness]]  # type: ignore
 
+    to_mutable: Callable[['CElementsMutableTxWitness'], 'CElementsMutableTxWitness']
+    to_immutable: Callable[['CElementsMutableTxWitness'], 'CElementsTxWitness']
+
 
 T_CAssetIssuance = TypeVar('T_CAssetIssuance', bound='CAssetIssuance')
 
@@ -745,6 +773,9 @@ class CElementsTxIn(ReprOrStrMixin, CTxIn, CoreElementsClass):
     nSequence: ReadOnlyField[int]
     assetIssuance: ReadOnlyField[CAssetIssuance]
     is_pegin: ReadOnlyField[bool]
+
+    to_mutable: Callable[['CElementsTxIn'], 'CElementsMutableTxIn']
+    to_immutable: Callable[['CElementsTxIn'], 'CElementsTxIn']
 
     def __init__(self, prevout: Optional[CElementsOutPoint] = None,
                  scriptSig: Optional[CScript] = CElementsScript(),
@@ -854,6 +885,9 @@ class CElementsMutableTxIn(CElementsTxIn, CMutableTxIn,
     assetIssuance: WriteableField[CAssetIssuance]
     is_pegin: WriteableField[bool]
 
+    to_mutable: Callable[['CElementsMutableTxIn'], 'CElementsMutableTxIn']
+    to_immutable: Callable[['CElementsMutableTxIn'], 'CElementsTxIn']
+
 
 T_CElementsTxOut = TypeVar('T_CElementsTxOut', bound='CElementsTxOut')
 
@@ -867,6 +901,9 @@ class CElementsTxOut(ReprOrStrMixin, CTxOut, CoreElementsClass):
     scriptPubKey: ReadOnlyField[CElementsScript]  # type: ignore
     nAsset: ReadOnlyField[CConfidentialAsset]
     nNonce: ReadOnlyField[CConfidentialNonce]
+
+    to_mutable: Callable[['CElementsTxOut'], 'CElementsMutableTxOut']
+    to_immutable: Callable[['CElementsTxOut'], 'CElementsTxOut']
 
     # nValue and scriptPubKey is first to be compatible with
     # CTxOut(nValue, scriptPubKey) calls
@@ -966,6 +1003,9 @@ class CElementsMutableTxOut(CElementsTxOut, CMutableTxOut,
     nAsset: WriteableField[CConfidentialAsset]
     nNonce: WriteableField[CConfidentialNonce]
 
+    to_mutable: Callable[['CElementsMutableTxOut'], 'CElementsMutableTxOut']
+    to_immutable: Callable[['CElementsMutableTxOut'], 'CElementsTxOut']
+
 
 T_CElementsTransaction = TypeVar('T_CElementsTransaction',
                                  bound='CElementsTransaction')
@@ -1061,16 +1101,19 @@ class CElementsMutableTransaction(CElementsTransaction,
     vout: WriteableField[List[CElementsMutableTxOut]]  # type: ignore
     wit: WriteableField[CElementsMutableTxWitness]  # type: ignore
 
+    to_mutable: Callable[['CElementsMutableTransaction'], 'CElementsMutableTransaction']
+    to_immutable: Callable[['CElementsMutableTransaction'], 'CElementsTransaction']
+
     def blind(self, *,
               input_descriptors: Sequence[BlindingInputDescriptor] = (),
               output_pubkeys: Sequence[CPubKey] = (), # noqa
-              blind_issuance_asset_keys: Sequence[CKeyBase] = (),
-              blind_issuance_token_keys: Sequence[CKeyBase] = (),
+              blind_issuance_asset_keys: Sequence[Optional[CKeyBase]] = (),
+              blind_issuance_token_keys: Sequence[Optional[CKeyBase]] = (),
               auxiliary_generators: Sequence[Union[bytes, bytearray]] = (),
               custom_ct_exponent: Optional[int] = None,
               custom_ct_bits: Optional[int] = None,
               _rand_func: Callable[[int], bytes] = os.urandom
-              ) -> 'BlindingOrUnblindingResult':
+              ) -> Union['BlindingSuccess', 'BlindingFailure']:
 
         return blind_transaction(
             self,
@@ -1087,15 +1130,15 @@ class CElementsMutableTransaction(CElementsTransaction,
 def blind_transaction(tx: CElementsMutableTransaction, *,
                       input_descriptors: Sequence[BlindingInputDescriptor] = (),
                       output_pubkeys: Sequence[CPubKey] = (), # noqa
-                      blind_issuance_asset_keys: Sequence[CKeyBase] = (),
-                      blind_issuance_token_keys: Sequence[CKeyBase] = (),
+                      blind_issuance_asset_keys: Sequence[Optional[CKeyBase]] = (),
+                      blind_issuance_token_keys: Sequence[Optional[CKeyBase]] = (),
                       auxiliary_generators: Sequence[Union[bytes, bytearray]] = (),
                       custom_ct_exponent: Optional[int] = None,
                       custom_ct_bits: Optional[int] = None,
                       _rand_func: Callable[[int], bytes] = os.urandom,
-                      ) -> 'BlindingOrUnblindingResult':
+                      ) -> Union['BlindingSuccess', 'BlindingFailure']:
 
-    """Blinds the transaction. Return a BlindingOrUnblindingResult"""
+    """Blinds the transaction. Returns BlindingSuccess or BlindingFailure"""
 
     ensure_isinstance(tx, CElementsTransaction, 'transaction')
 
@@ -1473,9 +1516,13 @@ def blind_transaction(tx: CElementsMutableTransaction, *,
 
                 # nonce should just be blinding key
                 if nPseudo == 0:
-                    nonce = Uint256(blind_issuance_asset_keys[nIn].secret_bytes)
+                    asset_key = blind_issuance_asset_keys[nIn]
+                    assert asset_key is not None
+                    nonce = Uint256(asset_key.secret_bytes)
                 else:
-                    nonce = Uint256(blind_issuance_token_keys[nIn].secret_bytes)
+                    token_key = blind_issuance_token_keys[nIn]
+                    assert token_key is not None
+                    nonce = Uint256(token_key.secret_bytes)
 
                 # Generate rangeproof, no script committed for issuances
                 rangeproof = generate_rangeproof(
@@ -1857,7 +1904,7 @@ def unblind_confidential_pair(*, blinding_key: CKeyBase,  # noqa
                               confNonce: CConfidentialNonce,
                               committedScript: CElementsScript,
                               rangeproof: Union[bytes, bytearray]
-                              ) -> 'BlindingOrUnblindingResult':
+                              ) -> Union['UnblindingSuccess', 'UnblindingFailure']:
     """Unblinds a pair of confidential value and confidential asset
     given key, nonce, committed script, and rangeproof.
     returns a tuple of (success, result)

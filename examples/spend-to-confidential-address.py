@@ -27,7 +27,7 @@ import sys
 from bitcointx import select_chain_params, get_current_chain_params
 from bitcointx.core import (
     x, b2x, Uint256, Hash160,
-    CTxIn, COutPoint, CTxInWitness
+    CTxIn, COutPoint
 )
 from bitcointx.core.key import CPubKey
 from bitcointx.core.scripteval import VerifyScript, SCRIPT_VERIFY_P2SH
@@ -44,8 +44,10 @@ from bitcointx.core.script import (
 from elementstx import ElementsParams
 from elementstx.core import (
     CConfidentialValue, CConfidentialAsset, BlindingInputDescriptor,
-    CElementsTransaction, CElementsTxOut, CElementsMutableTxOut
+    CElementsTransaction, CElementsTxOut, CElementsMutableTxOut,
+    CElementsTxInWitness, BlindingSuccess
 )
+from elementstx.core import CElementsScript
 from elementstx.wallet import CCoinConfidentialAddress, CElementsAddress
 
 
@@ -217,7 +219,7 @@ if __name__ == '__main__':
         ],
         output_pubkeys=output_pubkeys)
 
-    if blind_result.error:
+    if not isinstance(blind_result, BlindingSuccess):
         sys.stderr.write('unable to blind: {}'.format(blind_result.error))
         sys.exit(-1)
 
@@ -236,8 +238,8 @@ if __name__ == '__main__':
     # Sign the only input of the transaction
     input_index = 0  # only one input in this tx - index 0
 
-    script_for_sighash = CScript([OP_DUP, OP_HASH160, Hash160(key.pub),
-                                  OP_EQUALVERIFY, OP_CHECKSIG])
+    script_for_sighash = CElementsScript([OP_DUP, OP_HASH160, Hash160(key.pub),
+                                          OP_EQUALVERIFY, OP_CHECKSIG])
 
     sighash = script_for_sighash.sighash(
         tx, input_index,
@@ -248,12 +250,15 @@ if __name__ == '__main__':
 
     inner_scriptPubKey = CScript([0, Hash160(key.pub)])
     tx.vin[input_index].scriptSig = CScript([inner_scriptPubKey])
-    tx.wit.vtxinwit[input_index] = CTxInWitness(
-        CScriptWitness([CScript(sig), CScript(key.pub)]))
+    tx.wit.vtxinwit[input_index] = CElementsTxInWitness(
+        CScriptWitness([CScript(sig), CScript(key.pub)])).to_mutable()
     scriptpubkey = inner_scriptPubKey.to_p2sh_scriptPubKey()
 
+    # VerifyScript does not know about confidential values.
+    # Somewhen we might have VerifyElementsScript.
+    # but for now, ignore the type error.
     VerifyScript(tx.vin[input_index].scriptSig, scriptpubkey,
-                 tx, input_index, amount=utxo.nValue,
+                 tx, input_index, amount=utxo.nValue,  # type: ignore
                  flags=(SCRIPT_VERIFY_P2SH,))
 
     sys.stderr.write("Successfully signed\n")
