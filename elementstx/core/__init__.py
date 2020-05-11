@@ -1537,6 +1537,10 @@ def blind_transaction(tx: CElementsMutableTransaction, *,
                 # Successfully blinded this issuance
                 nSuccessfullyBlinded += 1
 
+    # Make sure that number of txout witnesses is correct
+    while len(tx.wit.vtxoutwit) < len(tx.vout):
+        tx.wit.vtxoutwit.append(CElementsMutableTxOutWitness())
+
     # This section of code *only* deals with unblinded outputs
     # that we want to blind
     for nOut, out_pub in enumerate(output_pubkeys):
@@ -1619,9 +1623,6 @@ def blind_transaction(tx: CElementsMutableTransaction, *,
                     nSuccessfullyBlinded += 1
                     return blinding_success(nSuccessfullyBlinded)
 
-            while len(tx.wit.vtxoutwit) <= nOut:
-                tx.wit.vtxoutwit.append(CElementsMutableTxOutWitness())
-
             txoutwit = tx.wit.vtxoutwit[nOut]
 
             output_blinding_factors[nOut] = blinds[-1]
@@ -1643,7 +1644,7 @@ def blind_transaction(tx: CElementsMutableTransaction, *,
             out.nNonce = CConfidentialNonce(bytes(ephemeral_pubkey))
 
             # Generate rangeproof
-            txoutwit.rangeproof = generate_rangeproof(
+            rangeproof = generate_rangeproof(
                 blinds, nonce, amount, out.scriptPubKey, commit, gen, asset, assetblinds,
                 custom_ct_exponent=custom_ct_exponent, custom_ct_bits=custom_ct_bits)
 
@@ -1656,6 +1657,7 @@ def blind_transaction(tx: CElementsMutableTransaction, *,
             if not surjectionproof:
                 continue
 
+            txoutwit.rangeproof = rangeproof
             txoutwit.surjectionproof = surjectionproof
 
             # Successfully blinded this output

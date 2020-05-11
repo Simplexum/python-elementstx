@@ -2,6 +2,8 @@
 
 * set `CT_BITS` to 52 (sync with Elements Core, PR#834)
 * Fix sighash calculation when transaction contains asset issuances
+* Fix the number of output witnesses after blind. When last outputs
+  were not blinded, empty witnesses were not added for them.
 
 ## v0.1.3
 
