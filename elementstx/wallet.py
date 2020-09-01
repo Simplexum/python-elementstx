@@ -12,7 +12,7 @@
 # pylama:ignore=E501
 
 from io import BytesIO
-from typing import Union, List, TypeVar, Type
+from typing import Union, List, TypeVar, Type, cast
 
 from bitcointx.core.key import (
     CPubKey
@@ -67,6 +67,8 @@ T_CCoinConfidentialAddress = TypeVar('T_CCoinConfidentialAddress',
 
 class CCoinConfidentialAddress(CCoinAddress):
 
+    _unconfidential_address_class: Type[CCoinAddress]
+
     @classmethod
     def from_unconfidential(
         cls: Type[T_CCoinConfidentialAddress], unconfidential_adr: CCoinAddress,
@@ -113,7 +115,8 @@ class CCoinConfidentialAddress(CCoinAddress):
             if isinstance(unconfidential_adr, unconf_cls) and\
                     (issubclass(cls, (conf_cls, chain_specific_conf_cls))
                      or issubclass(chain_specific_conf_cls, cls)):
-                return conf_cls.from_bytes(blinding_pubkey + unconfidential_adr)
+                conf_adr = conf_cls.from_bytes(blinding_pubkey + unconfidential_adr)
+                return cast(T_CCoinConfidentialAddress, conf_adr)
             if issubclass(cls, (conf_cls, chain_specific_conf_cls)):
                 raise TypeError(
                     'cannot create {} from {}: only subclasses of {} are accepted'
@@ -133,7 +136,8 @@ class CCoinConfidentialAddress(CCoinAddress):
         # and is not convenient, and not gives much in correctness.
         assert isinstance(self, bytes), \
             "descendant classes must also be bytes subclasses"
-        return self._unconfidential_address_class.from_bytes(self[33:])
+        unconf_adr = self._unconfidential_address_class.from_bytes(self[33:])
+        return cast(CCoinAddress, unconf_adr)
 
     @property
     def blinding_pubkey(self) -> CPubKey:
