@@ -1112,6 +1112,7 @@ class CElementsMutableTransaction(CElementsTransaction,
               auxiliary_generators: Sequence[Union[bytes, bytearray]] = (),
               custom_ct_exponent: Optional[int] = None,
               custom_ct_bits: Optional[int] = None,
+              is_blind_success_strict: bool = True,
               _rand_func: Callable[[int], bytes] = os.urandom
               ) -> Union['BlindingSuccess', 'BlindingFailure']:
 
@@ -1124,6 +1125,7 @@ class CElementsMutableTransaction(CElementsTransaction,
             auxiliary_generators=auxiliary_generators,
             custom_ct_exponent=custom_ct_exponent,
             custom_ct_bits=custom_ct_bits,
+            is_blind_success_strict=is_blind_success_strict,
             _rand_func=_rand_func)
 
 
@@ -1135,6 +1137,7 @@ def blind_transaction(tx: CElementsMutableTransaction, *,
                       auxiliary_generators: Sequence[Union[bytes, bytearray]] = (),
                       custom_ct_exponent: Optional[int] = None,
                       custom_ct_bits: Optional[int] = None,
+                      is_blind_success_strict: bool = True,
                       _rand_func: Callable[[int], bytes] = os.urandom,
                       ) -> Union['BlindingSuccess', 'BlindingFailure']:
 
@@ -1180,7 +1183,20 @@ def blind_transaction(tx: CElementsMutableTransaction, *,
     output_asset_blinding_factors: List[Optional[Uint256]] = \
         [None for _ in range(len(tx.vout))]
 
-    def blinding_success(nSuccessfullyBlinded: int) -> BlindingSuccess:
+    # Number of outputs and issuances to blind
+    nToBlind = 0
+
+    # Number of outputs and issuances successfully blinded
+    nSuccessfullyBlinded = 0
+
+    def blinding_result() -> Union['BlindingSuccess', 'BlindingFailure']:
+
+        if is_blind_success_strict and nSuccessfullyBlinded != nToBlind:
+            return BlindingFailure(
+                f'blinded {nSuccessfullyBlinded} outputs/issuances, but '
+                f'should have blinded {nToBlind} (this check can be '
+                f'turned off with is_blind_success_strict=False)')
+
         for i, bf in enumerate(output_blinding_factors):
             if bf is None:
                 output_blinding_factors[i] = Uint256()
@@ -1223,7 +1239,6 @@ def blind_transaction(tx: CElementsMutableTransaction, *,
 
     nBlindAttempts = 0
     nIssuanceBlindAttempts = 0
-    nSuccessfullyBlinded = 0
 
     # Surjection proof prep
 
@@ -1355,8 +1370,6 @@ def blind_transaction(tx: CElementsMutableTransaction, *,
 
     # Total blinded inputs that you own (that you are balancing against)
     nBlindsIn = 0
-    # Number of outputs and issuances to blind
-    nToBlind = 0
 
     blinds = []
     assetblinds = []
@@ -1484,7 +1497,7 @@ def blind_transaction(tx: CElementsMutableTransaction, *,
                 if nBlindAttempts == nToBlind:
                     # All outputs we own are unblinded, we don't support this type of blinding
                     # though it is possible. No privacy gained here, incompatible with secp api
-                    return blinding_success(nSuccessfullyBlinded)
+                    return blinding_result()
 
                 while len(tx.wit.vtxinwit) <= nIn:
                     tx.wit.vtxinwit.append(CElementsMutableTxInWitness())
@@ -1566,7 +1579,7 @@ def blind_transaction(tx: CElementsMutableTransaction, *,
                 # Adversary would need to create all input blinds
                 # therefore would already know all your summed output amount anyways.
                 if nBlindAttempts == 1 and nBlindsIn == 0:
-                    return blinding_success(nSuccessfullyBlinded)
+                    return blinding_result()
 
                 blindedAmounts = (ctypes.c_uint64 * len(amounts_to_blind))(*amounts_to_blind)
                 assetblindptrs = (ctypes.c_char_p*len(assetblinds))()
@@ -1621,7 +1634,7 @@ def blind_transaction(tx: CElementsMutableTransaction, *,
                 # Count as success(to signal caller that nothing wrong) and return early
                 if blinds[-1].is_null():
                     nSuccessfullyBlinded += 1
-                    return blinding_success(nSuccessfullyBlinded)
+                    return blinding_result()
 
             txoutwit = tx.wit.vtxoutwit[nOut]
 
@@ -1663,7 +1676,7 @@ def blind_transaction(tx: CElementsMutableTransaction, *,
             # Successfully blinded this output
             nSuccessfullyBlinded += 1
 
-    return blinding_success(nSuccessfullyBlinded)
+    return blinding_result()
 
 
 def generate_asset_entropy(
