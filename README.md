@@ -45,6 +45,9 @@ select_chain_params('elements')
 # or, using the chain params class directly
 select_chain_params(ElementsParams)
 
+# To switch to Liquid Network parameters:
+select_chain_params('elements/liquidv1')
+
 ```
 
 Without the switch of chain parameters:
