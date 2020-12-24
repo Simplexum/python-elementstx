@@ -645,17 +645,28 @@ class CElementsTxWitness(ReprOrStrMixin, CTxWitness, CoreElementsClass):
                 return False
         return True
 
-    # NOTE: this cannot be a @classmethod like the others because we need to
-    # know how many items to deserialize, which comes from len(vin)
-    def stream_deserialize(self: T_CElementsTxWitness,  # type: ignore
-                           f: BytesIO, **kwargs: Any) -> T_CElementsTxWitness:
+    @classmethod
+    def stream_deserialize(cls: Type[T_CElementsTxWitness],
+                           f: BytesIO,
+                           num_inputs: int = -1,
+                           num_outputs: int = -1,
+                           **kwargs: Any) -> T_CElementsTxWitness:
+        if num_inputs < 0:
+            raise ValueError(
+                'num_outputs must be specified (and must be non-negative)')
+
+        if num_outputs < 0:
+            raise ValueError(
+                'num_outputs must be specified (and must be non-negative)')
+
         vtxinwit = tuple(
             CElementsTxInWitness.stream_deserialize(f)
-            for dummy in range(len(self.vtxinwit)))
+            for dummy in range(num_inputs))
         vtxoutwit = tuple(
             CElementsTxOutWitness.stream_deserialize(f)
-            for dummy in range(len(self.vtxoutwit)))
-        return self.__class__(vtxinwit, vtxoutwit)
+            for dummy in range(num_outputs))
+
+        return cls(vtxinwit, vtxoutwit)
 
     def stream_serialize(self, f: BytesIO, **kwargs: Any) -> None:
         for i in range(len(self.vtxinwit)):
@@ -1043,13 +1054,17 @@ class CElementsTransaction(CTransaction, CoreElementsClass):
         if markerbyte == 0 and flagbyte == 1:
             vin = VectorSerializer.stream_deserialize(f, element_class=CTxIn)
             vout = VectorSerializer.stream_deserialize(f, element_class=CTxOut)
-            wit = CTxWitness(tuple(CTxInWitness()
-                                   for dummy in range(len(vin))),
-                             tuple(CTxOutWitness()
-                                   for dummy in range(len(vout))))
             # Note: nLockTime goes before witness in Elements transactions
             nLockTime = struct.unpack(b"<I", ser_read(f, 4))[0]
-            wit = wit.stream_deserialize(f)
+            wit = CElementsTxWitness.stream_deserialize(
+                f, num_inputs=len(vin), num_outputs=len(vout),
+                **kwargs)
+
+            if wit.is_null():
+                # It's illegal to encode witnesses
+                # when all witness stacks are empty.
+                raise ValueError('Superfluous witness record')
+
             return cls(vin, vout, nLockTime, nVersion, wit)
         else:
             vin = VectorSerializer.stream_deserialize(f, element_class=CTxIn)
