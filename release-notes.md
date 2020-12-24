@@ -1,5 +1,6 @@
 ## v0.1.4.dev0
 
+* Make `CTransaction.stream_deserialize` a @classmethod, as it should be
 * set `CT_BITS` to 52 (sync with Elements Core, PR#834)
 * Fix sighash calculation when transaction contains asset issuances
 * Fix the number of output witnesses after blind. When last outputs
