@@ -127,12 +127,10 @@ class CBlech32Data(bytes):
             raise ValueError(
                 'witver must be in range 0 to 16 inclusive; got %r' % witver)
 
-        # mypy cannot handle arguments to `bytes.__new__()` at the moment,
-        # issue: https://github.com/python/typeshed/issues/2630
-        self = bytes.__new__(cls, witprog)  # type: ignore
+        self = bytes.__new__(cls, witprog)
         if cls_wv < 0:
             self.blech32_witness_version = witver
-        self.__init__(None)
+        self.__init__(None)  # type: ignore
 
         return cast(T_unbounded, self)
 
