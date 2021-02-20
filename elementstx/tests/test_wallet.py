@@ -20,7 +20,7 @@ from collections import namedtuple
 from bitcointx import ChainParams, get_registered_chain_params
 from bitcointx.core import Hash160, x
 from bitcointx.core.script import CScript
-from bitcointx.tests.test_wallet import test_address_implementations
+from bitcointx.tests.test_wallet import _test_address_implementations
 from bitcointx.util import dispatcher_mapped_list
 
 from bitcointx.wallet import (
@@ -98,7 +98,7 @@ class Test_ElementsAddress(unittest.TestCase):
                 return True
             return False
 
-        test_address_implementations(
+        _test_address_implementations(
             self, paramclasses=get_params_list(),
             extra_addr_testfunc=test_confidenital)
 
