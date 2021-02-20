@@ -27,9 +27,8 @@ import hashlib
 from io import BytesIO
 from typing import (
     Union, List, Tuple, Iterable, Sequence, Optional, Type, TypeVar,
-    Callable, Any
+    Callable, Any, NamedTuple
 )
-from collections import namedtuple
 
 from elementstx.core.secp256k1 import (
     _secp256k1, secp256k1_has_zkp, secp256k1_blind_context,
@@ -77,14 +76,17 @@ OUTPOINT_PEGIN_FLAG = (1 << 30)
 OUTPOINT_INDEX_MASK = 0x3fffffff
 
 
-ZKPRangeproofInfo = namedtuple('ZKPRangeproofInfo',
-                               'exp mantissa value_min value_max')
+ZKPRangeproofInfo = NamedTuple('ZKPRangeproofInfo',
+                               [('exp', int),
+                                ('mantissa', int),
+                                ('value_min', int),
+                                ('value_max', int)])
 
-BlindingInputDescriptor = namedtuple('BlindingInputDescriptor',
-                                     ('asset',
-                                      'amount',
-                                      'blinding_factor',
-                                      'asset_blinding_factor'))
+BlindingInputDescriptor = NamedTuple('BlindingInputDescriptor',
+                                     [('asset', 'CAsset'),
+                                      ('amount', int),
+                                      ('blinding_factor', Uint256),
+                                      ('asset_blinding_factor', Uint256)])
 
 
 class BlindingOrUnblindingResult(metaclass=abc.ABCMeta):
@@ -135,10 +137,12 @@ class BlindingFailure(BlindingOrUnblindingFailure):
 
 
 class BlindingSuccess(BlindingOrUnblindingSuccess,
-                      namedtuple('BlindingSuccess',
-                                 ('num_successfully_blinded',
-                                  'blinding_factors',
-                                  'asset_blinding_factors'))):
+                      NamedTuple(
+                          'BlindingSuccess',
+                          [('num_successfully_blinded', int),
+                           ('blinding_factors', Sequence[Uint256]),
+                           ('asset_blinding_factors', Sequence[Uint256])])):
+
     __slots__: List[str] = []
 
     num_successfully_blinded: int
@@ -161,11 +165,11 @@ class UnblindingFailure(BlindingOrUnblindingFailure):
 
 
 class UnblindingSuccess(BlindingOrUnblindingSuccess,
-                        namedtuple('UnblindingSuccess',
-                                   ('asset',
-                                    'amount',
-                                    'blinding_factor',
-                                    'asset_blinding_factor'))):
+                        NamedTuple('UnblindingSuccess',
+                                   [('asset', 'CAsset'),
+                                    ('amount', int),
+                                    ('blinding_factor', Uint256),
+                                    ('asset_blinding_factor', Uint256)])):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         assert isinstance(self.amount, int)
         assert MoneyRange(self.amount)
