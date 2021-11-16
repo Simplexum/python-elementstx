@@ -45,6 +45,58 @@ OP_CHECKSIGFROMSTACKVERIFY = CScriptOp(0xc2)
 
 OP_SUBSTR_LAZY = CScriptOp(0xc3)
 
+# Elements: Tapscript (Streaming sha2 opcodes)
+OP_SHA256INITIALIZE = CScriptOp(0xc4)
+OP_SHA256UPDATE = CScriptOp(0xc5)
+OP_SHA256FINALIZE = CScriptOp(0xc6)
+
+# Introspection opcodes
+
+# inputs
+OP_INSPECTINPUTOUTPOINT = CScriptOp(0xc7)
+OP_INSPECTINPUTASSET = CScriptOp(0xc8)
+OP_INSPECTINPUTVALUE = CScriptOp(0xc9)
+OP_INSPECTINPUTSCRIPTPUBKEY = CScriptOp(0xca)
+OP_INSPECTINPUTSEQUENCE = CScriptOp(0xcb)
+OP_INSPECTINPUTISSUANCE = CScriptOp(0xcc)
+
+# current index
+OP_PUSHCURRENTINPUTINDEX = CScriptOp(0xcd)
+
+# outputs
+OP_INSPECTOUTPUTASSET = CScriptOp(0xce)
+OP_INSPECTOUTPUTVALUE = CScriptOp(0xcf)
+OP_INSPECTOUTPUTNONCE = CScriptOp(0xd0)
+OP_INSPECTOUTPUTSCRIPTPUBKEY = CScriptOp(0xd1)
+
+# transaction
+OP_INSPECTVERSION = CScriptOp(0xd2)
+OP_INSPECTLOCKTIME = CScriptOp(0xd3)
+OP_INSPECTNUMINPUTS = CScriptOp(0xd4)
+OP_INSPECTNUMOUTPUTS = CScriptOp(0xd5)
+OP_TXWEIGHT = CScriptOp(0xd6)
+
+# Arithmetic opcodes
+OP_ADD64 = CScriptOp(0xd7)
+OP_SUB64 = CScriptOp(0xd8)
+OP_MUL64 = CScriptOp(0xd9)
+OP_DIV64 = CScriptOp(0xda)
+OP_NEG64 = CScriptOp(0xdb)
+OP_LESSTHAN64 = CScriptOp(0xdc)
+OP_LESSTHANOREQUAL64 = CScriptOp(0xdd)
+OP_GREATERTHAN64 = CScriptOp(0xde)
+OP_GREATERTHANOREQUAL64 = CScriptOp(0xdf)
+
+# Conversion opcodes
+OP_SCRIPTNUMTOLE64 = CScriptOp(0xe0)
+OP_LE64TOSCRIPTNUM = CScriptOp(0xe1)
+OP_LE32TOLE64 = CScriptOp(0xe2)
+
+# Crypto opcodes
+OP_ECMULSCALARVERIFY = CScriptOp(0xe3)
+OP_TWEAKVERIFY = CScriptOp(0xe4)
+
+
 class ScriptElementsClassDispatcher(ScriptCoinClassDispatcher):
     ...
 
