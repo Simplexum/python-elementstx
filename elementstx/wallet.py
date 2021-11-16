@@ -21,7 +21,7 @@ from bitcointx.core.script import CScript
 from bitcointx.wallet import (
     WalletCoinClassDispatcher, WalletCoinClass,
     CCoinAddress, P2SHCoinAddress, P2WSHCoinAddress,
-    P2PKHCoinAddress, P2WPKHCoinAddress,
+    P2PKHCoinAddress, P2WPKHCoinAddress, P2TRCoinAddress,
     CBase58CoinAddress, CBech32CoinAddress,
     CCoinAddressError,
     CCoinKey, CCoinExtKey, CCoinExtPubKey
@@ -254,6 +254,13 @@ class P2WSHCoinConfidentialAddress(CBlech32CoinConfidentialAddress,
     _scriptpubkey_type = 'witness_v0_scripthash'
 
 
+class P2TRCoinConfidentialAddress(CBlech32CoinConfidentialAddress,
+                                  next_dispatch_final=True):
+    _data_length = 32 + 33
+    blech32_witness_version = 1
+    _scriptpubkey_type = 'witness_v1_taproot'
+
+
 class P2WPKHCoinConfidentialAddress(CBlech32CoinConfidentialAddress,
                                     next_dispatch_final=True):
     _data_length = 20 + 33
@@ -323,6 +330,10 @@ class P2WPKHElementsAddress(P2WPKHCoinAddress, CBech32ElementsAddress):
     ...
 
 
+class P2TRElementsAddress(P2TRCoinAddress, CBech32ElementsAddress):
+    ...
+
+
 class P2PKHElementsConfidentialAddress(CBase58ElementsConfidentialAddress,
                                        P2PKHCoinConfidentialAddress):
 
@@ -356,6 +367,14 @@ class P2WSHElementsConfidentialAddress(CBlech32ElementsConfidentialAddress,
 
 
 P2WSHElementsAddress.register(P2WSHElementsConfidentialAddress)
+
+
+class P2TRElementsConfidentialAddress(CBlech32ElementsConfidentialAddress,
+                                      P2TRCoinConfidentialAddress):
+    _unconfidential_address_class = P2TRElementsAddress
+
+
+P2TRElementsAddress.register(P2TRElementsConfidentialAddress)
 
 
 class CElementsKey(CCoinKey, WalletElementsClass):
@@ -413,10 +432,17 @@ class P2WPKHElementsLiquidV1Address(P2WPKHCoinAddress, CBech32ElementsLiquidV1Ad
     ...
 
 
+class P2TRElementsLiquidV1Address(P2TRCoinAddress, CBech32ElementsLiquidV1Address):
+    ...
+
+
 class P2PKHElementsLiquidV1ConfidentialAddress(CBase58ElementsLiquidV1ConfidentialAddress,
                                                P2PKHCoinConfidentialAddress):
     base58_prefix = bytes([12, 57])
     _unconfidential_address_class = P2PKHElementsLiquidV1Address
+
+
+P2PKHElementsLiquidV1Address.register(P2PKHElementsLiquidV1ConfidentialAddress)
 
 
 class P2SHElementsLiquidV1ConfidentialAddress(CBase58ElementsLiquidV1ConfidentialAddress,
@@ -425,14 +451,31 @@ class P2SHElementsLiquidV1ConfidentialAddress(CBase58ElementsLiquidV1Confidentia
     _unconfidential_address_class = P2SHElementsLiquidV1Address
 
 
+P2SHElementsLiquidV1Address.register(P2SHElementsLiquidV1ConfidentialAddress)
+
+
 class P2WPKHElementsLiquidV1ConfidentialAddress(CBlech32ElementsLiquidV1ConfidentialAddress,
                                                 P2WPKHCoinConfidentialAddress):
     _unconfidential_address_class = P2WPKHElementsLiquidV1Address
 
 
+P2WPKHElementsLiquidV1Address.register(P2WPKHElementsLiquidV1ConfidentialAddress)
+
+
 class P2WSHElementsLiquidV1ConfidentialAddress(CBlech32ElementsLiquidV1ConfidentialAddress,
                                                P2WSHCoinConfidentialAddress):
     _unconfidential_address_class = P2WSHElementsLiquidV1Address
+
+
+P2WSHElementsLiquidV1Address.register(P2WSHElementsLiquidV1ConfidentialAddress)
+
+
+class P2TRElementsLiquidV1ConfidentialAddress(CBlech32ElementsLiquidV1ConfidentialAddress,
+                                              P2TRCoinConfidentialAddress):
+    _unconfidential_address_class = P2TRElementsLiquidV1Address
+
+
+P2TRElementsLiquidV1Address.register(P2TRElementsLiquidV1ConfidentialAddress)
 
 
 class CElementsLiquidV1Key(CCoinKey, WalletElementsLiquidV1Class):
@@ -468,6 +511,8 @@ __all__ = (
     'P2WPKHElementsAddress',
     'P2PKHElementsConfidentialAddress',
     'P2SHElementsConfidentialAddress',
+    'P2TRElementsAddress',
+    'P2TRElementsConfidentialAddress',
     'CElementsKey',
     'CElementsExtPubKey',
     'CElementsExtKey',
@@ -483,6 +528,8 @@ __all__ = (
     'P2WPKHElementsLiquidV1Address',
     'P2PKHElementsLiquidV1ConfidentialAddress',
     'P2SHElementsLiquidV1ConfidentialAddress',
+    'P2TRElementsLiquidV1Address',
+    'P2TRElementsLiquidV1ConfidentialAddress',
     'CElementsLiquidV1Key',
     'CElementsLiquidV1ExtPubKey',
     'CElementsLiquidV1ExtKey',
