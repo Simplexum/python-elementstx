@@ -102,6 +102,7 @@ class CCoinConfidentialAddress(CCoinAddress):
             P2WPKHCoinAddress: P2WPKHCoinConfidentialAddress,
             P2SHCoinAddress: P2SHCoinConfidentialAddress,
             P2WSHCoinAddress: P2WSHCoinConfidentialAddress,
+            P2TRCoinAddress: P2TRCoinConfidentialAddress,
         }
         for unconf_cls, conf_cls in clsmap.items():
             mapped_cls_list = dispatcher_mapped_list(conf_cls)

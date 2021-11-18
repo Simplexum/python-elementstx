@@ -54,7 +54,7 @@ from bitcointx.core import (
 
 from bitcointx.util import (
     no_bool_use_as_property, ensure_isinstance,
-    ReadOnlyField, WriteableField
+    ReadOnlyField, WriteableField, tagged_hasher
 )
 from bitcointx.core.script import CScriptWitness, CScript
 from bitcointx.core.sha256 import CSHA256
@@ -197,6 +197,12 @@ class CoreElementsClass(CoreCoinClass, metaclass=CoreElementsClassDispatcher):
 class CoreElementsParams(CoreCoinParams, CoreElementsClass):
     CT_EXPONENT = 0
     CT_BITS = 52
+
+    TAPROOT_LEAF_TAPSCRIPT = 0xc4
+    taptweak_hasher = tagged_hasher(b'TapTweak/elements')
+    tapleaf_hasher = tagged_hasher(b'TapLeaf/elements')
+    tapbranch_hasher = tagged_hasher(b'TapBranch/elements')
+    tap_sighash_hasher = tagged_hasher(b'TapSighash/elements')
 
 
 class WitnessSerializationError(SerializationError):
@@ -415,8 +421,8 @@ class CElementsTxInWitness(ReprOrStrMixin, CTxInWitness, CoreElementsClass):
                             'inflationKeysRangeproof', 'pegin_witness']
 
     scriptWitness: ReadOnlyField[CScriptWitness]
-    issuanceAmountRangeproof: ReadOnlyField[CElementsScript]
-    inflationKeysRangeproof: ReadOnlyField[CElementsScript]
+    issuanceAmountRangeproof: ReadOnlyField[bytes]
+    inflationKeysRangeproof: ReadOnlyField[bytes]
     pegin_witness: ReadOnlyField[CScriptWitness]
 
     to_mutable: Callable[['CElementsTxInWitness'], 'CElementsMutableTxInWitness']
@@ -437,9 +443,9 @@ class CElementsTxInWitness(ReprOrStrMixin, CTxInWitness, CoreElementsClass):
 
         object.__setattr__(self, 'scriptWitness', scriptWitness)
         object.__setattr__(self, 'issuanceAmountRangeproof',
-                           CElementsScript(issuanceAmountRangeproof))
+                           bytes(issuanceAmountRangeproof))
         object.__setattr__(self, 'inflationKeysRangeproof',
-                           CElementsScript(inflationKeysRangeproof))
+                           bytes(inflationKeysRangeproof))
         # Note that scriptWitness/pegin_witness naming convention mismatch
         # exists in reference client code, and is retained here.
         object.__setattr__(self, 'pegin_witness', pegin_witness)
@@ -454,8 +460,8 @@ class CElementsTxInWitness(ReprOrStrMixin, CTxInWitness, CoreElementsClass):
     @classmethod
     def stream_deserialize(cls: Type[T_CElementsTxInWitness], f: BytesIO,
                            **kwargs: Any) -> T_CElementsTxInWitness:
-        issuanceAmountRangeproof = CElementsScript(BytesSerializer.stream_deserialize(f))
-        inflationKeysRangeproof = CElementsScript(BytesSerializer.stream_deserialize(f))
+        issuanceAmountRangeproof = BytesSerializer.stream_deserialize(f)
+        inflationKeysRangeproof = BytesSerializer.stream_deserialize(f)
         scriptWitness = CScriptWitness.stream_deserialize(f)
         pegin_witness = CScriptWitness.stream_deserialize(f)
         return cls(scriptWitness, issuanceAmountRangeproof, inflationKeysRangeproof,
@@ -507,8 +513,8 @@ class CElementsMutableTxInWitness(CElementsTxInWitness,
     __slots__: List[str] = []
 
     scriptWitness: WriteableField[CScriptWitness]
-    issuanceAmountRangeproof: WriteableField[CElementsScript]
-    inflationKeysRangeproof: WriteableField[CElementsScript]
+    issuanceAmountRangeproof: WriteableField[bytes]
+    inflationKeysRangeproof: WriteableField[bytes]
     pegin_witness: WriteableField[CScriptWitness]
 
     to_mutable: Callable[['CElementsMutableTxInWitness'], 'CElementsMutableTxInWitness']
