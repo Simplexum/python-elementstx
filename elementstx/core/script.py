@@ -43,6 +43,7 @@ OP_DETERMINISTICRANDOM = CScriptOp(0xc1)
 OP_CHECKSIGFROMSTACK = CScriptOp(0xc1)
 OP_CHECKSIGFROMSTACKVERIFY = CScriptOp(0xc2)
 
+OP_SUBSTR_LAZY = CScriptOp(0xc3)
 
 class ScriptElementsClassDispatcher(ScriptCoinClassDispatcher):
     ...
