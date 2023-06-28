@@ -45,7 +45,7 @@ from elementstx import ElementsParams
 from elementstx.core import (
     CConfidentialValue, CConfidentialAsset, BlindingInputDescriptor,
     CElementsTransaction, CElementsTxOut, CElementsMutableTxOut,
-    CElementsTxInWitness, BlindingSuccess
+    CElementsTxInWitness, BlindingSuccess, UnblindingSuccess
 )
 from elementstx.core import CElementsScript
 from elementstx.wallet import CCoinConfidentialAddress, CElementsAddress
@@ -137,6 +137,7 @@ if __name__ == '__main__':
                              .format(utxo_n, result.error))
             sys.exit(-1)
 
+        assert isinstance(result, UnblindingSuccess)
         amount_to_spend = result.amount
         asset_to_spend = result.asset
         blinding_factor = result.blinding_factor

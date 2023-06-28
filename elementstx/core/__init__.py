@@ -27,7 +27,7 @@ import hashlib
 from io import BytesIO
 from typing import (
     Union, List, Tuple, Iterable, Sequence, Optional, Type, TypeVar,
-    Callable, Any, NamedTuple
+    Callable, Any, NamedTuple, ClassVar
 )
 
 from elementstx.core.secp256k1 import (
@@ -98,6 +98,7 @@ class BlindingOrUnblindingResult(metaclass=abc.ABCMeta):
                 self.__class__.__name__))
 
     @abc.abstractmethod
+    @property
     def error(self) -> str:
         ...
 
@@ -398,8 +399,10 @@ class CElementsOutPoint(COutPoint, CoreElementsClass):
     """Elements COutPoint"""
     __slots__: List[str] = []
 
-    to_mutable: Callable[['CElementsOutPoint'], 'CElementsMutableOutPoint']
-    to_immutable: Callable[['CElementsOutPoint'], 'CElementsOutPoint']
+    to_mutable: ClassVar[Callable[['CElementsOutPoint'],
+                                  'CElementsMutableOutPoint']]
+    to_immutable: ClassVar[Callable[['CElementsOutPoint'],
+                                    'CElementsOutPoint']]
 
 
 class CElementsMutableOutPoint(CElementsOutPoint, CMutableOutPoint,
@@ -407,8 +410,10 @@ class CElementsMutableOutPoint(CElementsOutPoint, CMutableOutPoint,
     """A mutable Elements COutPoint"""
     __slots__: List[str] = []
 
-    to_mutable: Callable[['CElementsMutableOutPoint'], 'CElementsMutableOutPoint']
-    to_immutable: Callable[['CElementsMutableOutPoint'], 'CElementsOutPoint']
+    to_mutable: ClassVar[Callable[['CElementsMutableOutPoint'],
+                                  'CElementsMutableOutPoint']]
+    to_immutable: ClassVar[Callable[['CElementsMutableOutPoint'],
+                                    'CElementsOutPoint']]
 
 
 T_CElementsTxInWitness = TypeVar('T_CElementsTxInWitness',
@@ -425,8 +430,10 @@ class CElementsTxInWitness(ReprOrStrMixin, CTxInWitness, CoreElementsClass):
     inflationKeysRangeproof: ReadOnlyField[bytes]
     pegin_witness: ReadOnlyField[CScriptWitness]
 
-    to_mutable: Callable[['CElementsTxInWitness'], 'CElementsMutableTxInWitness']
-    to_immutable: Callable[['CElementsTxInWitness'], 'CElementsTxInWitness']
+    to_mutable: ClassVar[Callable[['CElementsTxInWitness'],
+                                  'CElementsMutableTxInWitness']]
+    to_immutable: ClassVar[Callable[['CElementsTxInWitness'],
+                                    'CElementsTxInWitness']]
 
     # put scriptWitness first for CTxInWitness(script_witness) to work
     # the same as with CBitcoinTxInWitness.
@@ -517,8 +524,10 @@ class CElementsMutableTxInWitness(CElementsTxInWitness,
     inflationKeysRangeproof: WriteableField[bytes]
     pegin_witness: WriteableField[CScriptWitness]
 
-    to_mutable: Callable[['CElementsMutableTxInWitness'], 'CElementsMutableTxInWitness']
-    to_immutable: Callable[['CElementsMutableTxInWitness'], 'CElementsTxInWitness']
+    to_mutable: ClassVar[Callable[['CElementsMutableTxInWitness'],
+                                  'CElementsMutableTxInWitness']]
+    to_immutable: ClassVar[Callable[['CElementsMutableTxInWitness'],
+                                    'CElementsTxInWitness']]
 
 
 T_CElementsTxOutWitness = TypeVar('T_CElementsTxOutWitness',
@@ -532,8 +541,10 @@ class CElementsTxOutWitness(CTxOutWitness, CoreElementsClass):
     surjectionproof: ReadOnlyField[bytes]
     rangeproof: ReadOnlyField[bytes]
 
-    to_mutable: Callable[['CElementsTxOutWitness'], 'CElementsMutableTxOutWitness']
-    to_immutable: Callable[['CElementsTxOutWitness'], 'CElementsTxOutWitness']
+    to_mutable: ClassVar[Callable[['CElementsTxOutWitness'],
+                                  'CElementsMutableTxOutWitness']]
+    to_immutable: ClassVar[Callable[['CElementsTxOutWitness'],
+                                    'CElementsTxOutWitness']]
 
     def __init__(self, surjectionproof: Union[bytes, bytearray] = b'',
                  rangeproof: Union[bytes, bytearray] = b''):
@@ -609,8 +620,10 @@ class CElementsMutableTxOutWitness(CElementsTxOutWitness, CMutableTxOutWitness,
     surjectionproof: WriteableField[bytes]
     rangeproof: WriteableField[bytes]
 
-    to_mutable: Callable[['CElementsMutableTxOutWitness'], 'CElementsMutableTxOutWitness']
-    to_immutable: Callable[['CElementsMutableTxOutWitness'], 'CElementsTxOutWitness']
+    to_mutable: ClassVar[Callable[['CElementsMutableTxOutWitness'],
+                                  'CElementsMutableTxOutWitness']]
+    to_immutable: ClassVar[Callable[['CElementsMutableTxOutWitness'],
+                                    'CElementsTxOutWitness']]
 
 
 T_CElementsTxWitness = TypeVar('T_CElementsTxWitness',
@@ -624,8 +637,10 @@ class CElementsTxWitness(ReprOrStrMixin, CTxWitness, CoreElementsClass):
     vtxinwit: ReadOnlyField[Tuple[CElementsTxInWitness]]  # type: ignore
     vtxoutwit: ReadOnlyField[Tuple[CElementsTxOutWitness]]
 
-    to_mutable: Callable[['CElementsTxWitness'], 'CElementsMutableTxWitness']
-    to_immutable: Callable[['CElementsTxWitness'], 'CElementsTxWitness']
+    to_mutable: ClassVar[Callable[['CElementsTxWitness'],
+                                  'CElementsMutableTxWitness']]
+    to_immutable: ClassVar[Callable[['CElementsTxWitness'],
+                                    'CElementsTxWitness']]
 
     def __init__(self, vtxinwit: Iterable[CElementsTxInWitness] = (),
                  vtxoutwit: Iterable[CElementsTxOutWitness] = ()):
@@ -719,8 +734,10 @@ class CElementsMutableTxWitness(CElementsTxWitness,
     vtxinwit: WriteableField[List[CElementsMutableTxInWitness]]  # type: ignore
     vtxoutwit: WriteableField[List[CElementsMutableTxOutWitness]]  # type: ignore
 
-    to_mutable: Callable[['CElementsMutableTxWitness'], 'CElementsMutableTxWitness']
-    to_immutable: Callable[['CElementsMutableTxWitness'], 'CElementsTxWitness']
+    to_mutable: ClassVar[Callable[['CElementsMutableTxWitness'],
+                                  'CElementsMutableTxWitness']]
+    to_immutable: ClassVar[Callable[['CElementsMutableTxWitness'],
+                                    'CElementsTxWitness']]
 
 
 T_CAssetIssuance = TypeVar('T_CAssetIssuance', bound='CAssetIssuance')
@@ -795,8 +812,9 @@ class CElementsTxIn(ReprOrStrMixin, CTxIn, CoreElementsClass):
     assetIssuance: ReadOnlyField[CAssetIssuance]
     is_pegin: ReadOnlyField[bool]
 
-    to_mutable: Callable[['CElementsTxIn'], 'CElementsMutableTxIn']
-    to_immutable: Callable[['CElementsTxIn'], 'CElementsTxIn']
+    to_mutable: ClassVar[Callable[['CElementsTxIn'],
+                                  'CElementsMutableTxIn']]
+    to_immutable: ClassVar[Callable[['CElementsTxIn'], 'CElementsTxIn']]
 
     def __init__(self, prevout: Optional[CElementsOutPoint] = None,
                  scriptSig: Optional[CScript] = CElementsScript(),
@@ -906,8 +924,9 @@ class CElementsMutableTxIn(CElementsTxIn, CMutableTxIn,
     assetIssuance: WriteableField[CAssetIssuance]
     is_pegin: WriteableField[bool]
 
-    to_mutable: Callable[['CElementsMutableTxIn'], 'CElementsMutableTxIn']
-    to_immutable: Callable[['CElementsMutableTxIn'], 'CElementsTxIn']
+    to_mutable: ClassVar[Callable[['CElementsMutableTxIn'],
+                                  'CElementsMutableTxIn']]
+    to_immutable: ClassVar[Callable[['CElementsMutableTxIn'], 'CElementsTxIn']]
 
 
 T_CElementsTxOut = TypeVar('T_CElementsTxOut', bound='CElementsTxOut')
@@ -923,8 +942,8 @@ class CElementsTxOut(ReprOrStrMixin, CTxOut, CoreElementsClass):
     nAsset: ReadOnlyField[CConfidentialAsset]
     nNonce: ReadOnlyField[CConfidentialNonce]
 
-    to_mutable: Callable[['CElementsTxOut'], 'CElementsMutableTxOut']
-    to_immutable: Callable[['CElementsTxOut'], 'CElementsTxOut']
+    to_mutable: ClassVar[Callable[['CElementsTxOut'], 'CElementsMutableTxOut']]
+    to_immutable: ClassVar[Callable[['CElementsTxOut'], 'CElementsTxOut']]
 
     # nValue and scriptPubKey is first to be compatible with
     # CTxOut(nValue, scriptPubKey) calls
@@ -1024,8 +1043,10 @@ class CElementsMutableTxOut(CElementsTxOut, CMutableTxOut,
     nAsset: WriteableField[CConfidentialAsset]
     nNonce: WriteableField[CConfidentialNonce]
 
-    to_mutable: Callable[['CElementsMutableTxOut'], 'CElementsMutableTxOut']
-    to_immutable: Callable[['CElementsMutableTxOut'], 'CElementsTxOut']
+    to_mutable: ClassVar[Callable[['CElementsMutableTxOut'],
+                                  'CElementsMutableTxOut']]
+    to_immutable: ClassVar[Callable[['CElementsMutableTxOut'],
+                                    'CElementsTxOut']]
 
 
 T_CElementsTransaction = TypeVar('T_CElementsTransaction',
@@ -1039,8 +1060,10 @@ class CElementsTransaction(CTransaction, CoreElementsClass):
     vout: ReadOnlyField[Tuple[CElementsTxOut]]  # type: ignore
     wit: ReadOnlyField[CElementsTxWitness]  # type: ignore
 
-    to_mutable: Callable[['CElementsTransaction'], 'CElementsMutableTransaction']
-    to_immutable: Callable[['CElementsTransaction'], 'CElementsTransaction']
+    to_mutable: ClassVar[Callable[['CElementsTransaction'],
+                                  'CElementsMutableTransaction']]
+    to_immutable: ClassVar[Callable[['CElementsTransaction'],
+                                    'CElementsTransaction']]
 
     @classmethod
     def stream_deserialize(cls: Type[T_CElementsTransaction], f: BytesIO,
@@ -1126,8 +1149,10 @@ class CElementsMutableTransaction(CElementsTransaction,
     vout: WriteableField[List[CElementsMutableTxOut]]  # type: ignore
     wit: WriteableField[CElementsMutableTxWitness]  # type: ignore
 
-    to_mutable: Callable[['CElementsMutableTransaction'], 'CElementsMutableTransaction']
-    to_immutable: Callable[['CElementsMutableTransaction'], 'CElementsTransaction']
+    to_mutable: ClassVar[Callable[['CElementsMutableTransaction'],
+                                  'CElementsMutableTransaction']]
+    to_immutable: ClassVar[Callable[['CElementsMutableTransaction'],
+                                    'CElementsTransaction']]
 
     def blind(self, *,
               input_descriptors: Sequence[BlindingInputDescriptor] = (),

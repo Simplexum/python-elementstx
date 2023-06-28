@@ -24,7 +24,7 @@ from bitcointx import select_chain_params, get_current_chain_params
 from bitcointx.core import x, satoshi_to_coins
 from bitcointx.wallet import CCoinKey, CCoinAddress
 from elementstx import ElementsParams
-from elementstx.core import CElementsTransaction
+from elementstx.core import CElementsTransaction, UnblindingSuccess
 from elementstx.wallet import CCoinConfidentialAddress
 
 
@@ -93,6 +93,7 @@ if __name__ == '__main__':
                         print('  value-maximum',
                               satoshi_to_coins(rpinfo.value_max, check_range=False))
             else:
+                assert isinstance(result, UnblindingSuccess)
                 # Successfully unblinded the output !
                 print("vout {}: unblinded".format(n))
                 addr = CCoinAddress.from_scriptPubKey(tx.vout[n].scriptPubKey)

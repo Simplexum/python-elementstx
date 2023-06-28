@@ -677,14 +677,16 @@ def participant(func, name, pipe, config_path):
     """Prepares environment for participants, run their functions,
     and handles the errors they did not bother to hanlde"""
 
-    def say(msg): participant_says(name, msg)
+    def say(msg):
+        participant_says(name, msg)
 
     # Custom exception class to distinguish a case when
     # participant calss die() from other exceptions
     class ProtocolFailure(Exception):
         ...
 
-    def die(msg): raise ProtocolFailure(msg)
+    def die(msg):
+        raise ProtocolFailure(msg)
 
     def recv(expected_type, timeout=60):
         if not pipe.poll(timeout):
@@ -701,7 +703,8 @@ def participant(func, name, pipe, config_path):
 
         return msg[1]
 
-    def send(msg_type, data=None): pipe.send([msg_type, data])
+    def send(msg_type, data=None):
+        pipe.send([msg_type, data])
 
     # Ignore keyboard interrupt, parent process handles it.
     signal.signal(signal.SIGINT, signal.SIG_IGN)
