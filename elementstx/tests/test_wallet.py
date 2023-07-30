@@ -23,7 +23,6 @@ from bitcointx.core.script import CScript
 from bitcointx.tests.test_wallet import _test_address_implementations
 from bitcointx.util import (
     dispatcher_mapped_list,
-    _allow_secp256k1_experimental_modules
 )
 
 from bitcointx.wallet import (
@@ -86,8 +85,6 @@ class Test_ElementsAddress(unittest.TestCase):
             if getattr(aclass, '_unconfidential_address_class', None):
                 ucaclass = aclass._unconfidential_address_class  # type: ignore
                 if getattr(ucaclass, 'from_xonly_pubkey', None):
-                    if not _allow_secp256k1_experimental_modules:
-                        return True
                     a = ucaclass.from_xonly_pubkey(pub)
                 elif getattr(ucaclass, 'from_pubkey', None):
                     a = ucaclass.from_pubkey(pub)

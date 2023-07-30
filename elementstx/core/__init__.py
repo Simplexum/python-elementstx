@@ -97,8 +97,8 @@ class BlindingOrUnblindingResult(metaclass=abc.ABCMeta):
                 self.__class__.__name__, self.__class__.__name__,
                 self.__class__.__name__))
 
-    @abc.abstractmethod
     @property
+    @abc.abstractmethod
     def error(self) -> str:
         ...
 
