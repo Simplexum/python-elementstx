@@ -131,7 +131,7 @@ class Test_ElementsAddress(unittest.TestCase):
                 self.assertEqual(smpl.conf_p2sh.get_output_size(), 32 + elements_confidential_size_extra)
                 self.assertEqual(smpl.conf_p2wsh.get_output_size(), 43 + elements_confidential_size_extra)
 
-    def test_from_to_unconfidential(self) -> None:  #noqa
+    def test_from_to_unconfidential(self) -> None:  # noqa
         pub1 = CPubKey(x('02546c76587482cd2468b76768da70c0166ecb2aa2eb1038624f4fedc138b042bc'))
         pub2 = CPubKey(x('0378d430274f8c5ec1321338151e9f27f4c676a008bdf8638d07c0b6be9ab35c71'))
         params_list = get_params_list()

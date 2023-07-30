@@ -18,7 +18,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-# pylama:ignore=E501,E261
+# pylama:ignore=E501
 
 """Reference implementation for Blech32 and segwit addresses."""
 
@@ -42,11 +42,11 @@ class Encoding(Enum):
 
 def blech32_polymod(values: List[int]) -> int:
     """Internal function that computes the blech32 checksum."""
-    generator = [0x7d52fba40bd886, 0x5e8dbf1a03950c, 0x1c3a3c74072a18, 0x385d72fa0e5139, 0x7093e5a608865b] # new generators, 7 bytes
+    generator = [0x7d52fba40bd886, 0x5e8dbf1a03950c, 0x1c3a3c74072a18, 0x385d72fa0e5139, 0x7093e5a608865b]  # new generators, 7 bytes
     chk = 1
     for value in values:
-        top = chk >> 55 # 25->55
-        chk = ((chk & 0x7fffffffffffff) << 5) ^ value # 0x1ffffff->0x7fffffffffffff
+        top = chk >> 55  # 25->55
+        chk = ((chk & 0x7fffffffffffff) << 5) ^ value  # 0x1ffffff->0x7fffffffffffff
         for i in range(5):
             chk ^= generator[i] if ((top >> i) & 1) else 0
     return chk
@@ -73,7 +73,7 @@ def blech32_create_checksum(encoding: Encoding, hrp: str, data: List[int]
     """Compute the checksum values given HRP and data."""
     values = blech32_hrp_expand(hrp) + data
     const = BECH32M_CONST if encoding == Encoding.BECH32M else BECH32_CONST
-    polymod = blech32_polymod(values + [0]*12) ^ const # 6->12
+    polymod = blech32_polymod(values + [0]*12) ^ const  # 6->12
     return [(polymod >> 5 * (11 - i)) & 31 for i in range(12)]
 #                            ^ 5                          ^ 6
 
@@ -91,7 +91,7 @@ def blech32_decode(bech: str) -> Tuple[Optional[Encoding], Optional[str], Option
         return (None, None, None)
     bech = bech.lower()
     pos = bech.rfind('1')
-    if pos < 1 or pos + 13 > len(bech) or len(bech) > 1000: # 7->13 90->1000
+    if pos < 1 or pos + 13 > len(bech) or len(bech) > 1000:  # 7->13 90->1000
         return (None, None, None)
     if not all(x in CHARSET for x in bech[pos+1:]):
         return (None, None, None)
@@ -100,7 +100,7 @@ def blech32_decode(bech: str) -> Tuple[Optional[Encoding], Optional[str], Option
     encoding = blech32_verify_checksum(hrp, data)
     if encoding is None:
         return (None, None, None)
-    return (encoding, hrp, data[:-12]) # 6->12
+    return (encoding, hrp, data[:-12])  # 6->12
 
 
 def convertbits(data: Union[bytes, List[int]], frombits: int, tobits: int,

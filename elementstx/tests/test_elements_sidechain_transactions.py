@@ -18,7 +18,7 @@ import random
 import logging
 import unittest
 
-from typing import Sequence, Iterator, Tuple, List, Dict, Optional, Any, Type
+from typing import Sequence, Iterator, Tuple, List, Dict, Optional, Any
 
 import bitcointx
 from bitcointx.core import (
@@ -200,138 +200,150 @@ class Test_Elements_CTransaction(ElementsTestSetupBase, unittest.TestCase):
         for tx_decoded, tx, tx_bytes in load_test_vectors('elements_txs.json'):
             self.check_serialize_deserialize(tx, tx_bytes, tx_decoded)
 
-    def check_serialize_deserialize(
+    def check_serialize_deserialize(  # noqa
         self, tx: CElementsTransaction, tx_bytes: bytes, tx_decoded: Dict[str, Any]
     ) -> None:
-            self.assertEqual(tx_bytes, tx.serialize())
-            self.assertEqual(tx_bytes, CTransaction.deserialize(tx.serialize()).serialize())
-            self.assertEqual(tx_bytes, tx.to_mutable().to_immutable().serialize())
-            self.assertEqual(tx_decoded['version'], tx.nVersion)
-            self.assertEqual(tx_decoded['locktime'], tx.nLockTime)
-            # we ignore withash field - we do not have ComputeWitnessHash() function
-            # as it is only relevant for blocks, not transactions
-            self.assertEqual(tx_decoded['hash'], b2lx(tx.GetHash()))
-            self.assertEqual(tx_decoded['txid'], b2lx(tx.GetTxid()))
-            for n, vout in enumerate(tx_decoded['vout']):
-                if 'amountcommitment' in vout:
-                    self.assertEqual(x(vout['amountcommitment']),
-                                     tx.vout[n].nValue.commitment)
-                if 'assetcommitment' in vout:
-                    self.assertEqual(x(vout['assetcommitment']),
-                                     tx.vout[n].nAsset.commitment)
-                if 'asset' in vout:
-                    self.assertEqual(vout['asset'], tx.vout[n].nAsset.to_asset().to_hex())
-                if 'scriptPubKey' in vout:
-                    spk = vout['scriptPubKey']
-                    self.assertEqual(x(spk['hex']), tx.vout[n].scriptPubKey)
+        self.assertEqual(tx_bytes, tx.serialize())
+        self.assertEqual(tx_bytes, CTransaction.deserialize(tx.serialize()).serialize())
+        self.assertEqual(tx_bytes, tx.to_mutable().to_immutable().serialize())
+        self.assertEqual(tx_decoded['version'], tx.nVersion)
+        self.assertEqual(tx_decoded['locktime'], tx.nLockTime)
+        # we ignore withash field - we do not have ComputeWitnessHash() function
+        # as it is only relevant for blocks, not transactions
+        self.assertEqual(tx_decoded['hash'], b2lx(tx.GetHash()))
+        self.assertEqual(tx_decoded['txid'], b2lx(tx.GetTxid()))
+        for n, vout in enumerate(tx_decoded['vout']):
+            if 'amountcommitment' in vout:
+                self.assertEqual(x(vout['amountcommitment']),
+                                 tx.vout[n].nValue.commitment)
 
-                    if 'pegout_type' in spk:
-                        self.assertEqual(spk['type'], 'nulldata')
-                        self.assertTrue(tx.vout[n].scriptPubKey.is_pegout())
-                        pegout_data = tx.vout[n].scriptPubKey.get_pegout_data()
-                        assert pegout_data is not None
-                        genesis_hash, pegout_scriptpubkey = pegout_data
-                        if spk['pegout_type'] != 'nonstandard':
-                            assert spk['pegout_type'] in ('pubkeyhash', 'scripthash')
-                            addr = CCoinAddress.from_scriptPubKey(pegout_scriptpubkey)
-                            self.assertEqual(len(spk['pegout_addresses']), 1)
-                            self.assertEqual(spk['pegout_addresses'][0], str(addr))
-                        self.assertEqual(spk['pegout_hex'], b2x(pegout_scriptpubkey))
-                        self.assertEqual(spk['pegout_chain'], b2lx(genesis_hash))
+            if 'assetcommitment' in vout:
+                self.assertEqual(x(vout['assetcommitment']),
+                                 tx.vout[n].nAsset.commitment)
 
-                    if spk['type'] in ('pubkeyhash', 'scripthash'):
-                        self.assertEqual(len(spk['addresses']), 1)
-                        addr = CCoinAddress.from_scriptPubKey(tx.vout[n].scriptPubKey)
-                        self.assertEqual(spk['addresses'][0], str(addr))
-                    elif spk['type'] == 'nulldata':
-                        self.assertEqual(tx.vout[n].scriptPubKey, x(spk['hex']))
-                    else:
-                        self.assertEqual(spk['type'], 'fee')
-                        self.assertEqual(len(tx.vout[n].scriptPubKey), 0)
+            if 'asset' in vout:
+                self.assertEqual(vout['asset'], tx.vout[n].nAsset.to_asset().to_hex())
 
-                if secp256k1_has_zkp:
-                    if tx.wit.is_null():
-                        rpinfo = None
-                    else:
-                        rpinfo = tx.wit.vtxoutwit[n].get_rangeproof_info()
-                    if 'value-minimum' in vout:
-                        assert rpinfo is not None
-                        self.assertEqual(vout['ct-exponent'], rpinfo.exp)
-                        self.assertEqual(vout['ct-bits'], rpinfo.mantissa)
-                        self.assertEqual(coins_to_satoshi(vout['value-minimum'], check_range=False),
-                                         rpinfo.value_min)
-                        self.assertEqual(coins_to_satoshi(vout['value-maximum'], check_range=False),
-                                         rpinfo.value_max)
-                    else:
-                        self.assertTrue(rpinfo is None or rpinfo.exp == -1)
-                        if rpinfo is None:
-                            value = tx.vout[n].nValue.to_amount()
-                        else:
-                            value = rpinfo.value_min
-                        self.assertEqual(coins_to_satoshi(vout['value']), value)
+            if 'scriptPubKey' in vout:
+                spk = vout['scriptPubKey']
+                self.assertEqual(x(spk['hex']), tx.vout[n].scriptPubKey)
+
+                if 'pegout_type' in spk:
+                    self.assertEqual(spk['type'], 'nulldata')
+                    self.assertTrue(tx.vout[n].scriptPubKey.is_pegout())
+                    pegout_data = tx.vout[n].scriptPubKey.get_pegout_data()
+                    assert pegout_data is not None
+                    genesis_hash, pegout_scriptpubkey = pegout_data
+                    if spk['pegout_type'] != 'nonstandard':
+                        assert spk['pegout_type'] in ('pubkeyhash', 'scripthash')
+                        addr = CCoinAddress.from_scriptPubKey(pegout_scriptpubkey)
+                        self.assertEqual(len(spk['pegout_addresses']), 1)
+                        self.assertEqual(spk['pegout_addresses'][0], str(addr))
+                    self.assertEqual(spk['pegout_hex'], b2x(pegout_scriptpubkey))
+                    self.assertEqual(spk['pegout_chain'], b2lx(genesis_hash))
+
+                if spk['type'] in ('pubkeyhash', 'scripthash'):
+                    self.assertEqual(len(spk['addresses']), 1)
+                    addr = CCoinAddress.from_scriptPubKey(tx.vout[n].scriptPubKey)
+                    self.assertEqual(spk['addresses'][0], str(addr))
+                elif spk['type'] == 'nulldata':
+                    self.assertEqual(tx.vout[n].scriptPubKey, x(spk['hex']))
                 else:
-                    warn_zkp_unavailable()
-                    if 'value' in vout and tx.vout[n].nValue.is_explicit():
-                        self.assertEqual(coins_to_satoshi(vout['value']), tx.vout[n].nValue.to_amount())
+                    self.assertEqual(spk['type'], 'fee')
+                    self.assertEqual(len(tx.vout[n].scriptPubKey), 0)
 
-            for n, vin in enumerate(tx_decoded['vin']):
-                if 'scriptSig' in vin:
-                    self.assertEqual(x(vin['scriptSig']['hex']), tx.vin[n].scriptSig)
-                if 'txid' in vin:
-                    self.assertEqual(vin['txid'], b2lx(tx.vin[n].prevout.hash))
-                if 'vout' in vin:
-                    self.assertEqual(vin['vout'], tx.vin[n].prevout.n)
-                if 'is_pegin' in vin:
-                    self.assertEqual(vin['is_pegin'], tx.vin[n].is_pegin)
-                    if vin['is_pegin'] is False:
-                        if 'scriptWitness' in vin:
-                            self.assertTrue(tx.wit.vtxinwit[n].scriptWitness.is_null())
-                        if 'pegin_witness' in vin:
-                            self.assertTrue(tx.wit.vtxinwit[n].pegin_witness.is_null())
+            if secp256k1_has_zkp:
+                if tx.wit.is_null():
+                    rpinfo = None
+                else:
+                    rpinfo = tx.wit.vtxoutwit[n].get_rangeproof_info()
+                if 'value-minimum' in vout:
+                    assert rpinfo is not None
+                    self.assertEqual(vout['ct-exponent'], rpinfo.exp)
+                    self.assertEqual(vout['ct-bits'], rpinfo.mantissa)
+                    self.assertEqual(coins_to_satoshi(vout['value-minimum'], check_range=False),
+                                     rpinfo.value_min)
+                    self.assertEqual(coins_to_satoshi(vout['value-maximum'], check_range=False),
+                                     rpinfo.value_max)
+                else:
+                    self.assertTrue(rpinfo is None or rpinfo.exp == -1)
+                    if rpinfo is None:
+                        value = tx.vout[n].nValue.to_amount()
                     else:
-                        for stack_index, stack_item in enumerate(vin['scriptWitness']):
-                            self.assertTrue(
-                                stack_item,
-                                b2x(tx.wit.vtxinwit[n].scriptWitness.stack[stack_index]))
-                        for stack_index, stack_item in enumerate(vin['pegin_witness']):
-                            self.assertTrue(
-                                stack_item,
-                                b2x(tx.wit.vtxinwit[n].pegin_witness.stack[stack_index]))
-                if 'sequence' in vin:
-                    self.assertEqual(vin['sequence'], tx.vin[n].nSequence)
-                if 'coinbase' in vin:
-                    self.assertTrue(tx.is_coinbase())
-                if 'issuance' in vin:
-                    iss = vin['issuance']
-                    self.assertEqual(iss['assetBlindingNonce'],
-                                     tx.vin[n].assetIssuance.assetBlindingNonce.to_hex())
-                    if 'asset' in iss:
-                        if iss['isreissuance']:
-                            self.assertTrue(not tx.vin[n].assetIssuance.assetBlindingNonce.is_null())
-                            self.assertEqual(iss['assetEntropy'],
-                                             tx.vin[n].assetIssuance.assetEntropy.to_hex())
-                            asset = calculate_asset(tx.vin[n].assetIssuance.assetEntropy)
-                        else:
-                            entropy = generate_asset_entropy(tx.vin[n].prevout,
-                                                             tx.vin[n].assetIssuance.assetEntropy)
-                            self.assertEqual(iss['assetEntropy'], entropy.to_hex())
-                            asset = calculate_asset(entropy)
-                            reiss_token = calculate_reissuance_token(
-                                entropy, tx.vin[n].assetIssuance.nAmount.is_commitment())
-                            self.assertEqual(iss['token'], reiss_token.to_hex())
-                        self.assertEqual(iss['asset'], asset.to_hex())
-                    if 'assetamount' in iss:
-                        self.assertEqual(coins_to_satoshi(iss['assetamount']),
-                                         tx.vin[n].assetIssuance.nAmount.to_amount())
-                    elif 'assetamountcommitment' in iss:
-                        self.assertEqual(iss['assetamountcommitment'],
-                                         b2x(tx.vin[n].assetIssuance.nAmount.commitment))
-                    if 'tokenamount' in iss:
-                        self.assertEqual(coins_to_satoshi(iss['tokenamount']),
-                                         tx.vin[n].assetIssuance.nInflationKeys.to_amount())
-                    elif 'tokenamountcommitment' in iss:
-                        self.assertEqual(iss['tokenamountcommitment'],
-                                         b2x(tx.vin[n].assetIssuance.nInflationKeys.commitment))
+                        value = rpinfo.value_min
+                    self.assertEqual(coins_to_satoshi(vout['value']), value)
+            else:
+                warn_zkp_unavailable()
+                if 'value' in vout and tx.vout[n].nValue.is_explicit():
+                    self.assertEqual(coins_to_satoshi(vout['value']), tx.vout[n].nValue.to_amount())
+
+        for n, vin in enumerate(tx_decoded['vin']):
+            if 'scriptSig' in vin:
+                self.assertEqual(x(vin['scriptSig']['hex']), tx.vin[n].scriptSig)
+
+            if 'txid' in vin:
+                self.assertEqual(vin['txid'], b2lx(tx.vin[n].prevout.hash))
+
+            if 'vout' in vin:
+                self.assertEqual(vin['vout'], tx.vin[n].prevout.n)
+
+            if 'is_pegin' in vin:
+                self.assertEqual(vin['is_pegin'], tx.vin[n].is_pegin)
+                if vin['is_pegin'] is False:
+                    if 'scriptWitness' in vin:
+                        self.assertTrue(tx.wit.vtxinwit[n].scriptWitness.is_null())
+
+                    if 'pegin_witness' in vin:
+                        self.assertTrue(tx.wit.vtxinwit[n].pegin_witness.is_null())
+                else:
+                    for stack_index, stack_item in enumerate(vin['scriptWitness']):
+                        self.assertTrue(
+                            stack_item,
+                            b2x(tx.wit.vtxinwit[n].scriptWitness.stack[stack_index]))
+                    for stack_index, stack_item in enumerate(vin['pegin_witness']):
+                        self.assertTrue(
+                            stack_item,
+                            b2x(tx.wit.vtxinwit[n].pegin_witness.stack[stack_index]))
+
+            if 'sequence' in vin:
+                self.assertEqual(vin['sequence'], tx.vin[n].nSequence)
+
+            if 'coinbase' in vin:
+                self.assertTrue(tx.is_coinbase())
+
+            if 'issuance' in vin:
+                iss = vin['issuance']
+                self.assertEqual(iss['assetBlindingNonce'],
+                                 tx.vin[n].assetIssuance.assetBlindingNonce.to_hex())
+                if 'asset' in iss:
+                    if iss['isreissuance']:
+                        self.assertTrue(not tx.vin[n].assetIssuance.assetBlindingNonce.is_null())
+                        self.assertEqual(iss['assetEntropy'],
+                                         tx.vin[n].assetIssuance.assetEntropy.to_hex())
+                        asset = calculate_asset(tx.vin[n].assetIssuance.assetEntropy)
+                    else:
+                        entropy = generate_asset_entropy(tx.vin[n].prevout,
+                                                         tx.vin[n].assetIssuance.assetEntropy)
+                        self.assertEqual(iss['assetEntropy'], entropy.to_hex())
+                        asset = calculate_asset(entropy)
+                        reiss_token = calculate_reissuance_token(
+                            entropy, tx.vin[n].assetIssuance.nAmount.is_commitment())
+                        self.assertEqual(iss['token'], reiss_token.to_hex())
+                    self.assertEqual(iss['asset'], asset.to_hex())
+
+                if 'assetamount' in iss:
+                    self.assertEqual(coins_to_satoshi(iss['assetamount']),
+                                     tx.vin[n].assetIssuance.nAmount.to_amount())
+                elif 'assetamountcommitment' in iss:
+                    self.assertEqual(iss['assetamountcommitment'],
+                                     b2x(tx.vin[n].assetIssuance.nAmount.commitment))
+
+                if 'tokenamount' in iss:
+                    self.assertEqual(coins_to_satoshi(iss['tokenamount']),
+                                     tx.vin[n].assetIssuance.nInflationKeys.to_amount())
+                elif 'tokenamountcommitment' in iss:
+                    self.assertEqual(iss['tokenamountcommitment'],
+                                     b2x(tx.vin[n].assetIssuance.nInflationKeys.commitment))
 
     def check_blind(
         self, unblinded_tx: CElementsTransaction, unblinded_tx_raw: bytes,

@@ -318,7 +318,7 @@ class CAsset(Uint256):
         ret = _secp256k1.secp256k1_generator_serialize(
             secp256k1_blind_context, result_commitment, gen)
         if 1 != ret:
-            assert(ret == 0)
+            assert ret == 0
             raise RuntimeError('secp256k1_generator_serialize returned failure')
         return result_commitment.raw
 
@@ -1111,8 +1111,8 @@ class CElementsTransaction(CTransaction, CoreElementsClass):
                          **kwargs: Any) -> None:
         f.write(struct.pack(b"<i", self.nVersion))
         if include_witness and not self.wit.is_null():
-            assert(len(self.wit.vtxinwit) == 0 or len(self.wit.vtxinwit) == len(self.vin))
-            assert(len(self.wit.vtxoutwit) == 0 or len(self.wit.vtxoutwit) == len(self.vout))
+            assert len(self.wit.vtxinwit) == 0 or len(self.wit.vtxinwit) == len(self.vin)
+            assert len(self.wit.vtxoutwit) == 0 or len(self.wit.vtxoutwit) == len(self.vout)
             f.write(b'\x01')  # Flag
             # no check of for_sighash, because standard sighash calls this without witnesses.
             VectorSerializer.stream_serialize(self.vin, f)
@@ -1210,7 +1210,7 @@ def blind_transaction(tx: CElementsMutableTransaction, *,
     for i, k in enumerate(blind_issuance_asset_keys):
         if k:
             ensure_isinstance(k, CKeyBase, f'key {i} in blind_issuance_asset_keys')
-    if not(len(tx.vin) >= len(blind_issuance_token_keys)):
+    if not len(tx.vin) >= len(blind_issuance_token_keys):
         raise ValueError('unexpected extra blind_issuance_token_keys')
     for i, k in enumerate(blind_issuance_token_keys):
         if k:
@@ -1328,7 +1328,7 @@ def blind_transaction(tx: CElementsMutableTransaction, *,
                 input_descriptors[i].asset.data,
                 input_descriptors[i].asset_blinding_factor.data)
             if 1 != ret:
-                assert(ret == 0)
+                assert ret == 0
                 raise RuntimeError('secp256k1_generator_generate_blinded returned failure')
 
         targetAssetGenerators[totalTargets] = asset_generator.raw
@@ -1364,7 +1364,7 @@ def blind_transaction(tx: CElementsMutableTransaction, *,
                     secp256k1_blind_context,
                     ta_gen_buf, asset.data)
                 if 1 != ret:
-                    assert(ret == 0)
+                    assert ret == 0
                     raise RuntimeError('secp256k1_generator_generate returned failure')
                 targetAssetGenerators[totalTargets] = ta_gen_buf.raw
                 # Issuance asset cannot be blinded by definition
@@ -1378,7 +1378,7 @@ def blind_transaction(tx: CElementsMutableTransaction, *,
                 ret = _secp256k1.secp256k1_generator_generate(
                     secp256k1_blind_context, ta_gen_buf, token.data)
                 if 1 != ret:
-                    assert(ret == 0)
+                    assert ret == 0
                     raise RuntimeError('secp256k1_generator_generate returned failure')
                 targetAssetGenerators[totalTargets] = ta_gen_buf.raw
                 # Issuance asset cannot be blinded by definition
@@ -1652,7 +1652,7 @@ def blind_transaction(tx: CElementsMutableTransaction, *,
                 # index of last blind, and that blinding factor will be overwritten.
                 assert len(blindptrs) == nBlindAttempts + nBlindsIn
 
-                assert(len(amounts_to_blind) == len(blindptrs))
+                assert len(amounts_to_blind) == len(blindptrs)
 
                 _immutable_check_hash = hashlib.sha256(b''.join(b.data for b in blinds)).digest()
 
@@ -1663,11 +1663,11 @@ def blind_transaction(tx: CElementsMutableTransaction, *,
                     nBlindAttempts + nBlindsIn, nIssuanceBlindAttempts + nBlindsIn)
 
                 if 1 != ret:
-                    assert(ret == 0)
+                    assert ret == 0
                     raise RuntimeError('secp256k1_pedersen_blind_generator_blind_sum returned failure')
 
-                assert(_immutable_check_hash == hashlib.sha256(b''.join(b.data
-                                                                        for b in blinds)).digest()),\
+                assert _immutable_check_hash == hashlib.sha256(b''.join(b.data
+                                                                        for b in blinds)).digest(),\
                     ("secp256k1_pedersen_blind_generator_blind_sum should not change "
                         "blinding factors other than the last one. Failing this assert "
                         "probably means that we supplied incorrect parameters to the function.")
@@ -1774,13 +1774,13 @@ def blinded_asset(asset: CAsset, assetblind: Uint256
     ret = _secp256k1.secp256k1_generator_generate_blinded(
         secp256k1_blind_context, gen, asset.data, assetblind.data)
     if 1 != ret:
-        assert(ret == 0)
+        assert ret == 0
         raise RuntimeError('secp256k1_generator_generate_blinded returned failure')
     result_commitment = ctypes.create_string_buffer(CConfidentialAsset._committedSize)
     ret = _secp256k1.secp256k1_generator_serialize(
         secp256k1_blind_context, result_commitment, gen)
     if 1 != ret:
-        assert(ret == 0)
+        assert ret == 0
         raise RuntimeError('secp256k1_generator_serialize returned failure')
 
     confAsset = CConfidentialAsset(bytes(result_commitment))
@@ -1795,13 +1795,13 @@ def create_value_commitment(blind: bytes, gen: bytes, amount: int
     ret = _secp256k1.secp256k1_pedersen_commit(
         secp256k1_blind_context, commit, blind, amount, gen)
     if 1 != ret:
-        assert(ret == 0)
+        assert ret == 0
         raise RuntimeError('secp256k1_pedersen_commit returned failure')
     result_commitment = ctypes.create_string_buffer(CConfidentialAsset._committedSize)
     ret = _secp256k1.secp256k1_pedersen_commitment_serialize(
         secp256k1_blind_context, result_commitment, commit)
     if 1 != ret:
-        assert(ret == 0)
+        assert ret == 0
         raise RuntimeError('secp256k1_pedersen_commitment_serialize returned failure')
 
     confValue = CConfidentialValue(bytes(result_commitment))
@@ -1876,7 +1876,7 @@ def generate_rangeproof(in_blinds: List[Uint256], nonce: Uint256,
         gen)
 
     if 1 != ret:
-        assert(ret == 0)
+        assert ret == 0
         raise RuntimeError('secp256k1_rangeproof_sign returned failure')
 
     return rangeproof.raw[:nRangeProofLen.value]
@@ -1937,7 +1937,7 @@ def generate_surjectionproof(surjectionTargets: List[Uint256],
             gen, input_index, targetAssetBlinders[input_index.value].data, assetblinds[-1].data)
 
         if 1 != ret:
-            assert(ret == 0)
+            assert ret == 0
             raise RuntimeError('secp256k1_surjectionproof_generate returned failure')
 
         # Double-check answer
@@ -1946,7 +1946,7 @@ def generate_surjectionproof(surjectionTargets: List[Uint256],
             ephemeral_input_tags_buf, len(targetAssetGenerators), gen)
 
         if 1 != ret:
-            assert(ret == 0)
+            assert ret == 0
             raise RuntimeError('secp256k1_surjectionproof_verify returned failure')
 
         # Serialize into output witness structure
@@ -2084,13 +2084,13 @@ def unblind_confidential_pair(*, blinding_key: CKeyBase,  # noqa
     res = _secp256k1.secp256k1_generator_serialize(
         secp256k1_blind_context, observed_generator, observed_gen)
     if 1 != res:
-        assert(res == 0)
+        assert res == 0
         raise RuntimeError('secp256k1_generator_serialize returned failure')
 
     res = _secp256k1.secp256k1_generator_serialize(
         secp256k1_blind_context, derived_generator, recalculated_gen)
     if 1 != res:
-        assert(res == 0)
+        assert res == 0
         raise RuntimeError('secp256k1_generator_serialize returned failure')
 
     if observed_generator.raw != derived_generator.raw:

@@ -91,7 +91,7 @@ class CCoinConfidentialAddress(CCoinAddress):
 
         # without #noqa linter gives warning that we should use isinstance.
         # but here we want exact match, isinstance is not applicable
-        if type(cls) is not type(unconfidential_adr.__class__): #noqa
+        if type(cls) is not type(unconfidential_adr.__class__):  # noqa
             raise TypeError(
                 'cannot create {} from {}: this address class might belong '
                 'to different chain'
