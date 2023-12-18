@@ -1,4 +1,4 @@
-## v0.1.4.dev0
+## v0.1.4
 
 * Make `CTransaction.stream_deserialize` a @classmethod, as it should be
 * set `CT_BITS` to 52 (sync with Elements Core, PR#834)
