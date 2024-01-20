@@ -9,7 +9,7 @@ here = os.path.abspath(os.path.dirname(__file__))
 with open(os.path.join(here, 'README.md')) as f:
     README = f.read()
 
-requires = ['python-bitcointx>=1.0.0,<2']
+requires = ['python-bitcointx>=1.1.5,<2']
 
 setup(name='python-elementstx',
       version=__version__,
@@ -17,12 +17,14 @@ setup(name='python-elementstx',
       long_description=README,
       long_description_content_type='text/markdown',
       classifiers=[
-          "Programming Language :: Python :: 3.6",
           "Programming Language :: Python :: 3.7",
           "Programming Language :: Python :: 3.8",
+          "Programming Language :: Python :: 3.9",
+          "Programming Language :: Python :: 3.10",
+          "Programming Language :: Python :: 3.11",
           "License :: OSI Approved :: GNU Lesser General Public License v3 or later (LGPLv3+)",
       ],
-      python_requires='>=3.6',
+      python_requires='>=3.7',
       url='https://github.com/Simplexum/python-elementstx',
       keywords='bitcoin,elements',
       packages=find_packages(),
