@@ -13,41 +13,94 @@
 # pylama:ignore=E501
 
 import ctypes
-from typing import List
+from typing import List, Optional
+import dataclasses
 
+import bitcointx
+import bitcointx.core.secp256k1
 from bitcointx.core.secp256k1 import (
-    load_secp256k1_library,
+    secp256k1_load_library,
     SECP256K1_CONTEXT_SIGN, SECP256K1_CONTEXT_VERIFY,
     secp256k1_create_and_init_context
 )
 
-_secp256k1 = load_secp256k1_library()
+import elementstx.util
 
 
-def _set_zkp_func_types() -> None:
-    _secp256k1.secp256k1_rangeproof_info.restype = ctypes.c_int
-    _secp256k1.secp256k1_rangeproof_info.argtypes = [
+@dataclasses.dataclass(frozen=True)
+class Secp256k1_ZKP_Capabilities(bitcointx.core.secp256k1.Secp256k1_Capabilities):
+    has_zkp: bool = False
+
+
+@dataclasses.dataclass(frozen=True)
+class Secp256k1_ZKP_Contexts(bitcointx.core.secp256k1.Secp256k1_Contexts):
+    blind: Optional['bitcointx.core.secp256k1.secp256k1_context_type'] = None
+
+
+@dataclasses.dataclass(frozen=True)
+class Secp256k1_ZKP:
+    lib: ctypes.CDLL
+    ctx: Secp256k1_ZKP_Contexts
+    cap: Secp256k1_ZKP_Capabilities
+
+
+_secp256k1: Optional[Secp256k1_ZKP] = None
+
+
+def get_secp256k1() -> Secp256k1_ZKP:
+    global _secp256k1
+
+    if not _secp256k1:
+        secp256k1 = secp256k1_load_library(elementstx.util._secp256k1_library_path)
+
+        has_zkp = False
+        blind_ctx: Optional['bitcointx.core.secp256k1.secp256k1_context_type'] = None
+
+        if getattr(secp256k1.lib, 'secp256k1_rangeproof_info', None):
+            has_zkp = True
+
+            _set_zkp_func_types(secp256k1.lib)
+
+            blind_ctx = secp256k1_create_and_init_context(
+                secp256k1.lib, SECP256K1_CONTEXT_SIGN | SECP256K1_CONTEXT_VERIFY)
+
+        zkp_ctx = Secp256k1_ZKP_Contexts(
+            sign=secp256k1.ctx.sign, verify=secp256k1.ctx.verify,
+            blind=blind_ctx)
+
+        zkp_cap = Secp256k1_ZKP_Capabilities(
+            has_zkp=has_zkp, **dataclasses.asdict(secp256k1.cap)
+        )
+
+        _secp256k1 = Secp256k1_ZKP(lib=secp256k1.lib, ctx=zkp_ctx, cap=zkp_cap)
+
+    return _secp256k1
+
+
+def _set_zkp_func_types(lib: ctypes.CDLL) -> None:
+    lib.secp256k1_rangeproof_info.restype = ctypes.c_int
+    lib.secp256k1_rangeproof_info.argtypes = [
         ctypes.c_void_p,
         ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_int),
         ctypes.POINTER(ctypes.c_uint64), ctypes.POINTER(ctypes.c_uint64),
         ctypes.c_char_p, ctypes.c_size_t
     ]
-    _secp256k1.secp256k1_generator_parse.restype = ctypes.c_int
-    _secp256k1.secp256k1_generator_parse.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p]
-    _secp256k1.secp256k1_generator_generate.restype = ctypes.c_int
-    _secp256k1.secp256k1_generator_generate.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p]
-    _secp256k1.secp256k1_generator_generate_blinded.restype = ctypes.c_int
-    _secp256k1.secp256k1_generator_generate_blinded.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p]
-    _secp256k1.secp256k1_generator_serialize.restype = ctypes.c_int
-    _secp256k1.secp256k1_generator_serialize.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p]
-    _secp256k1.secp256k1_pedersen_commit.restype = ctypes.c_int
-    _secp256k1.secp256k1_pedersen_commit.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint64, ctypes.c_char_p]
-    _secp256k1.secp256k1_pedersen_commitment_serialize.restype = ctypes.c_int
-    _secp256k1.secp256k1_pedersen_commitment_serialize.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p]
-    _secp256k1.secp256k1_pedersen_commitment_parse.restype = ctypes.c_int
-    _secp256k1.secp256k1_pedersen_commitment_parse.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p]
-    _secp256k1.secp256k1_pedersen_blind_generator_blind_sum.restype = ctypes.c_int
-    _secp256k1.secp256k1_pedersen_blind_generator_blind_sum.argtypes = [
+    lib.secp256k1_generator_parse.restype = ctypes.c_int
+    lib.secp256k1_generator_parse.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p]
+    lib.secp256k1_generator_generate.restype = ctypes.c_int
+    lib.secp256k1_generator_generate.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p]
+    lib.secp256k1_generator_generate_blinded.restype = ctypes.c_int
+    lib.secp256k1_generator_generate_blinded.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p]
+    lib.secp256k1_generator_serialize.restype = ctypes.c_int
+    lib.secp256k1_generator_serialize.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p]
+    lib.secp256k1_pedersen_commit.restype = ctypes.c_int
+    lib.secp256k1_pedersen_commit.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint64, ctypes.c_char_p]
+    lib.secp256k1_pedersen_commitment_serialize.restype = ctypes.c_int
+    lib.secp256k1_pedersen_commitment_serialize.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p]
+    lib.secp256k1_pedersen_commitment_parse.restype = ctypes.c_int
+    lib.secp256k1_pedersen_commitment_parse.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p]
+    lib.secp256k1_pedersen_blind_generator_blind_sum.restype = ctypes.c_int
+    lib.secp256k1_pedersen_blind_generator_blind_sum.argtypes = [
         ctypes.c_void_p,  # const secp256k1_context* ctx
         ctypes.POINTER(ctypes.c_uint64),  # const uint64_t *value
         ctypes.POINTER(ctypes.c_char_p),  # const unsigned char* const* generator_blind
@@ -55,8 +108,8 @@ def _set_zkp_func_types() -> None:
         ctypes.c_size_t,  # size_t n_total
         ctypes.c_size_t   # size_t n_inputs
     ]
-    _secp256k1.secp256k1_rangeproof_sign.restype = ctypes.c_int
-    _secp256k1.secp256k1_rangeproof_sign.argtypes = [
+    lib.secp256k1_rangeproof_sign.restype = ctypes.c_int
+    lib.secp256k1_rangeproof_sign.argtypes = [
         ctypes.c_void_p,  # const secp256k1_context* ctx
         ctypes.c_char_p,  # unsigned char *proof
         ctypes.POINTER(ctypes.c_size_t),  # size_t *plen
@@ -73,8 +126,8 @@ def _set_zkp_func_types() -> None:
         ctypes.c_size_t,  # size_t extra_commit_len,
         ctypes.c_char_p   # const secp256k1_generator* gen
     ]
-    _secp256k1.secp256k1_rangeproof_rewind.restype = ctypes.c_int
-    _secp256k1.secp256k1_rangeproof_rewind.argtypes = [
+    lib.secp256k1_rangeproof_rewind.restype = ctypes.c_int
+    lib.secp256k1_rangeproof_rewind.argtypes = [
         ctypes.c_void_p,  # const secp256k1_context* ctx
         ctypes.c_char_p,  # unsigned char *blind_out
         ctypes.POINTER(ctypes.c_uint64),  # uint64_t *value_out
@@ -90,8 +143,8 @@ def _set_zkp_func_types() -> None:
         ctypes.c_size_t,  # size_t extra_commit_len,
         ctypes.c_char_p   # const secp256k1_generator* gen
     ]
-    _secp256k1.secp256k1_surjectionproof_allocate_initialized.restype = ctypes.c_int
-    _secp256k1.secp256k1_surjectionproof_allocate_initialized.argtypes = [
+    lib.secp256k1_surjectionproof_allocate_initialized.restype = ctypes.c_int
+    lib.secp256k1_surjectionproof_allocate_initialized.argtypes = [
         ctypes.c_void_p,  # const secp256k1_context* ctx
         ctypes.POINTER(ctypes.c_void_p),  # secp256k1_surjectionproof** proof_out_p
         ctypes.POINTER(ctypes.c_size_t),  # size_t *input_index
@@ -103,13 +156,13 @@ def _set_zkp_func_types() -> None:
         ctypes.c_size_t,  # const size_t n_max_iterations
         ctypes.c_char_p   # const unsigned char *random_seed32
     ]
-    _secp256k1.secp256k1_surjectionproof_destroy.restype = None
-    _secp256k1.secp256k1_surjectionproof_destroy.argtypes = [
+    lib.secp256k1_surjectionproof_destroy.restype = None
+    lib.secp256k1_surjectionproof_destroy.argtypes = [
         ctypes.c_void_p,  # const secp256k1_surjectionproof* proof
     ]
 
-    _secp256k1.secp256k1_surjectionproof_generate.restype = ctypes.c_int
-    _secp256k1.secp256k1_surjectionproof_generate.argtypes = [
+    lib.secp256k1_surjectionproof_generate.restype = ctypes.c_int
+    lib.secp256k1_surjectionproof_generate.argtypes = [
         ctypes.c_void_p,  # const secp256k1_context* ctx
         ctypes.c_void_p,  # secp256k1_surjectionproof* proof
         #                   NOTE: use build_aligned_data_array()
@@ -121,8 +174,8 @@ def _set_zkp_func_types() -> None:
         ctypes.c_char_p   # const unsigned char *output_blinding_key
     ]
 
-    _secp256k1.secp256k1_surjectionproof_verify.restype = ctypes.c_int
-    _secp256k1.secp256k1_surjectionproof_verify.argtypes = [
+    lib.secp256k1_surjectionproof_verify.restype = ctypes.c_int
+    lib.secp256k1_surjectionproof_verify.argtypes = [
         ctypes.c_void_p,  # const secp256k1_context* ctx
         ctypes.c_void_p,  # const secp256k1_surjectionproof* proof
         #                   NOTE: use build_aligned_data_array()
@@ -130,30 +183,19 @@ def _set_zkp_func_types() -> None:
         ctypes.c_size_t,  # size_t n_ephemeral_input_tags
         ctypes.c_char_p   # const secp256k1_generator* ephemeral_output_tag
     ]
-    _secp256k1.secp256k1_surjectionproof_serialized_size.restype = ctypes.c_int
-    _secp256k1.secp256k1_surjectionproof_serialized_size.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    lib.secp256k1_surjectionproof_serialized_size.restype = ctypes.c_int
+    lib.secp256k1_surjectionproof_serialized_size.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
 
-    _secp256k1.secp256k1_ec_pubkey_serialize.restype = ctypes.c_int
-    _secp256k1.secp256k1_ec_pubkey_serialize.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.POINTER(ctypes.c_size_t), ctypes.c_char_p, ctypes.c_uint]
+    lib.secp256k1_ec_pubkey_serialize.restype = ctypes.c_int
+    lib.secp256k1_ec_pubkey_serialize.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.POINTER(ctypes.c_size_t), ctypes.c_char_p, ctypes.c_uint]
 
-    _secp256k1.secp256k1_surjectionproof_serialize.restype = ctypes.c_int
-    _secp256k1.secp256k1_surjectionproof_serialize.argtypes = [
+    lib.secp256k1_surjectionproof_serialize.restype = ctypes.c_int
+    lib.secp256k1_surjectionproof_serialize.argtypes = [
         ctypes.c_void_p,  # const secp256k1_context* ctx
         ctypes.c_char_p,  # unsigned char *output
         ctypes.POINTER(ctypes.c_size_t),  # size_t *outputlen
         ctypes.c_void_p   # const secp256k1_surjectionproof *proof
     ]
-
-
-secp256k1_has_zkp = False
-secp256k1_blind_context = None
-
-if getattr(_secp256k1, 'secp256k1_rangeproof_info', None):
-    secp256k1_has_zkp = True
-    _set_zkp_func_types()
-
-    secp256k1_blind_context = secp256k1_create_and_init_context(
-        _secp256k1, SECP256K1_CONTEXT_SIGN | SECP256K1_CONTEXT_VERIFY)
 
 
 def build_aligned_data_array(data_list: List[bytes], expected_len: int) -> bytes:
@@ -173,8 +215,7 @@ SECP256K1_GENERATOR_SIZE = 64
 SECP256K1_PEDERSEN_COMMITMENT_SIZE = 64
 
 __all__ = (
-    'secp256k1_has_zkp',
-    'secp256k1_blind_context',
+    'get_secp256k1',
     'build_aligned_data_array',
     'SECP256K1_GENERATOR_SIZE',
     'SECP256K1_PEDERSEN_COMMITMENT_SIZE'

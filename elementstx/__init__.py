@@ -11,8 +11,12 @@
 
 from .version import __version__
 
+import os
+from typing import Optional
+
 import elementstx.core
 import elementstx.wallet
+import elementstx.util
 
 from bitcointx import ChainParamsBase
 
@@ -39,6 +43,25 @@ class ElementsLiquidV1Params(ElementsParams, name='elements/liquidv1'):
 
     def get_datadir_extra_name(self) -> str:
         return self.NAME.split('/')[1]
+
+
+def set_custom_secp256k1_path(path: str) -> None:
+    """Set the custom path that will be used to load secp256k1 library
+    by elementstx.core.secp256k1 module. For the calling of this
+    function to have any effect, it has to be called before any
+    function that uses secp256k1 handle is called"""
+
+    if not os.path.isfile(path):
+        raise ValueError('supplied path does not point to a file')
+
+    elementstx.util._secp256k1_library_path = path
+
+
+def get_custom_secp256k1_path() -> Optional[str]:
+    """Return the path set earlier by set_custom_secp256k1_path().
+    If custom path was not set, None is returned"""
+
+    return elementstx.util._secp256k1_library_path
 
 
 __all__ = (

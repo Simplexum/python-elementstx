@@ -10,7 +10,7 @@
 # propagated, or distributed except according to the terms contained in the
 # LICENSE file.
 
-# pylama:ignore=E501
+# pylama:ignore=E501,E402
 
 import os
 import json
@@ -40,6 +40,8 @@ from bitcointx.wallet import (
     CCoinAddress, CCoinKey,
     P2PKHCoinAddress, P2SHCoinAddress
 )
+
+import elementstx
 from elementstx.core import (
     CAsset, CConfidentialValue, CConfidentialAsset, CConfidentialNonce,
     calculate_asset, generate_asset_entropy, calculate_reissuance_token,
@@ -52,8 +54,12 @@ from elementstx.core import (
 from elementstx.wallet import (
     P2PKHElementsAddress, P2SHElementsAddress
 )
-from elementstx.core.secp256k1 import secp256k1_has_zkp
+from elementstx.core.secp256k1 import get_secp256k1
 from elementstx.core.script import CElementsScript
+
+secp256k1_path = os.environ.get('ELEMENTSTX_TESTS_SECP256K1_PATH')
+if secp256k1_path:
+    elementstx.set_custom_secp256k1_path(secp256k1_path)
 
 zkp_unavailable_warning_shown = False
 
@@ -252,7 +258,8 @@ class Test_Elements_CTransaction(ElementsTestSetupBase, unittest.TestCase):
                     self.assertEqual(spk['type'], 'fee')
                     self.assertEqual(len(tx.vout[n].scriptPubKey), 0)
 
-            if secp256k1_has_zkp:
+            secp256k1 = get_secp256k1()
+            if secp256k1.cap.has_zkp:
                 if tx.wit.is_null():
                     rpinfo = None
                 else:
@@ -522,7 +529,7 @@ class Test_Elements_CTransaction(ElementsTestSetupBase, unittest.TestCase):
         tx_to_sign = blinded_tx.to_mutable()
         for n, vin in enumerate(tx_to_sign.vin):
             utxo = bundle['vin_utxo'][n]
-            amount = -1 if utxo['amount'] == -1 else coins_to_satoshi(utxo['amount'])
+            amount = None if utxo['amount'] == -1 else coins_to_satoshi(utxo['amount'])
 
             scriptPubKey = CScript(x(utxo['scriptPubKey']))
             a = CCoinAddress(utxo['address'])
@@ -552,12 +559,13 @@ class Test_Elements_CTransaction(ElementsTestSetupBase, unittest.TestCase):
                 sigs = [pk.sign(sighash) + bytes([SIGHASH_ALL]) for pk in pk_list]
                 tx_to_sign.vin[n].scriptSig = CScript([b''] + sigs + [redeem_script])
 
-            VerifyScript(tx_to_sign.vin[n].scriptSig, scriptPubKey, tx_to_sign, n, amount=amount)
+            VerifyScript(tx_to_sign.vin[n].scriptSig, scriptPubKey, tx_to_sign, n, amount=amount or 0)
 
         self.assertEqual(tx_to_sign.serialize(), signed_tx.serialize())
 
     def test_blind_unnblind_sign(self) -> None:
-        if not secp256k1_has_zkp:
+        secp256k1 = get_secp256k1()
+        if not secp256k1.cap.has_zkp:
             warn_zkp_unavailable()
             return
 
@@ -611,7 +619,8 @@ class Test_Elements_CTransaction(ElementsTestSetupBase, unittest.TestCase):
                 self.check_sign(blinded_tx, signed_tx, bundle)
 
     def test_split_blinding_multi_sign(self) -> None:
-        if not secp256k1_has_zkp:
+        secp256k1 = get_secp256k1()
+        if not secp256k1.cap.has_zkp:
             warn_zkp_unavailable()
             return
 
