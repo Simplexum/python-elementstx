@@ -1,4 +1,14 @@
-## v0.1.5.dev0
+## v0.1.5
+
+Fix elements RawElementsSignatureHash for `SIGVERSION_BASE` use `amount=None`
+instead of `amount=-1` (with -1 RawBitcoinSignatureHash of bitcointx returns
+an error)
+
+Add `elementstx.set_custom_secp256k1_path`, `elementstx.get_custom_secp256k1_path`
+
+Delay initialization of secp256k1 library handle in `elementsx.core.secp256k1`
+until any function that uses this handle is called. This allows to call
+`elementstx.set_custom_secp256k1_path` after all the imports are done
 
 ## v0.1.4
 
