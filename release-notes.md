@@ -1,3 +1,8 @@
+## v0.1.5.post0
+
+Add missing elementstx/util.py which currently only holds the
+`_secp256k1_library_path` variable
+
 ## v0.1.5
 
 Fix elements RawElementsSignatureHash for `SIGVERSION_BASE` use `amount=None`

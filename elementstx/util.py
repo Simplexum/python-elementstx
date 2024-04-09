@@ -9,4 +9,6 @@
 # propagated, or distributed except according to the terms contained in the
 # LICENSE file.
 
-__version__ = '0.1.5.post0'
+from typing import Optional
+
+_secp256k1_library_path: Optional[str] = None
